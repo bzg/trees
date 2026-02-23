@@ -1,0 +1,262 @@
+/*
+ * swh.css — Software Heritage theme for trees.clj (over Pure CSS 3.x)
+ *
+ * Usage in config.yml:
+ *   framework: pure
+ *   theme: swh.css
+ *
+ * Based on Software Heritage official brand guidelines
+ * https://www.softwareheritage.org/communication-kit/
+ *
+ * Official color scheme:
+ * - Red:          #e20026  (Primary brand color)
+ * - Orange:       #ef4426  (Secondary accent)
+ * - Light orange: #f79622  (Warm accent)
+ * - Yellow:       #fabf1f  (Highlight accent)
+ * - Grey:         #737373  (Neutral text)
+ *
+ * Includes automatic dark mode support via prefers-color-scheme.
+ */
+
+:root {
+  /* ── Brand colors (constant) ──────────────────────────── */
+  --swh-red: #e20026;
+  --swh-orange: #ef4426;
+  --swh-light-orange: #f79622;
+  --swh-yellow: #fabf1f;
+  --swh-grey: #737373;
+
+  --swh-gradient: linear-gradient(
+    90deg, #e20026 0%, #ef4426 33%, #f79622 66%, #fabf1f 100%
+  );
+
+  /* ── Light mode ───────────────────────────────────────── */
+  --swh-red-hover: #c90022;
+  --swh-red-light: #fce8eb;
+  --swh-grey-light: #f5f5f5;
+  --swh-grey-dark: #333333;
+  --swh-text: #444444;
+  --swh-text-muted: #737373;
+  --swh-border: #e0e0e0;
+  --swh-bg: #ffffff;
+  --swh-bg-elevated: #ffffff;
+  --swh-code-bg: #f8f8f8;
+  --swh-shadow-red: rgba(226, 0, 38, 0.12);
+
+  /* Override trees status colors */
+  --status-positive:    #18753c;
+  --status-positive-bg: color-mix(in srgb, #18753c 10%, transparent);
+  --status-neutral:     var(--swh-red);
+  --status-neutral-bg:  var(--swh-red-light);
+  --status-caution:     var(--swh-light-orange);
+  --status-caution-bg:  color-mix(in srgb, #f79622 10%, transparent);
+  --status-negative:    #ce0500;
+  --status-negative-bg: color-mix(in srgb, #ce0500 10%, transparent);
+
+  color-scheme: light dark;
+}
+
+/* ── Dark mode ──────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --swh-red: #ff2d4a;
+    --swh-red-hover: #ff5c73;
+    --swh-red-light: #3a1a20;
+    --swh-grey-light: #252525;
+    --swh-grey-dark: #e8e8e8;
+    --swh-text: #c8c8c8;
+    --swh-text-muted: #999999;
+    --swh-border: #404040;
+    --swh-bg: #1a1a1a;
+    --swh-bg-elevated: #222222;
+    --swh-code-bg: #2a2a2a;
+    --swh-shadow-red: rgba(255, 45, 74, 0.15);
+
+    --status-neutral: var(--swh-red);
+    --status-neutral-bg: var(--swh-red-light);
+    --status-caution-bg: color-mix(in srgb, #ffa033 12%, transparent);
+
+    --swh-gradient: linear-gradient(
+      90deg, #ff2d4a 0%, #ff5c3d 33%, #ffa033 66%, #ffc82e 100%
+    );
+  }
+}
+
+/* ── Base typography ────────────────────────────────────── */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  color: var(--swh-text);
+  background-color: var(--swh-bg);
+  line-height: 1.65;
+}
+
+a { color: var(--swh-red); text-decoration: none }
+a:hover { color: var(--swh-red-hover); text-decoration: underline }
+a:focus-visible { outline: 2px solid var(--swh-red); outline-offset: 2px }
+
+h1, h2, h3 { color: var(--swh-grey-dark); font-weight: 600 }
+
+/* ── Header with gradient bar ───────────────────────────── */
+header {
+  background: var(--swh-bg);
+  border-bottom: none;
+  padding: 2rem 1.5rem 1.5rem;
+  position: relative;
+}
+
+header::after {
+  content: '';
+  display: block;
+  height: 4px;
+  margin-top: 1.5rem;
+  background: var(--swh-gradient);
+  border-radius: 2px;
+}
+
+header h1 {
+  color: var(--swh-grey-dark);
+  font-weight: 700;
+}
+
+header h2 {
+  color: var(--swh-text-muted);
+}
+
+/* ── Footer ─────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--swh-border);
+  color: var(--swh-text-muted);
+  background: var(--swh-bg);
+}
+
+footer a { color: var(--swh-red) }
+footer a:hover { color: var(--swh-red-hover) }
+
+/* ── Progress bar: SWH gradient ─────────────────────────── */
+progress::-webkit-progress-bar { background: var(--swh-grey-light) }
+progress::-webkit-progress-value {
+  background: var(--swh-gradient);
+  border-radius: 4px;
+}
+progress::-moz-progress-bar {
+  background: var(--swh-gradient);
+  border-radius: 4px;
+}
+
+/* ── Buttons ────────────────────────────────────────────── */
+.trees button.pure-button {
+  border: 1px solid var(--swh-border);
+  border-radius: 6px;
+  background: var(--swh-bg-elevated);
+  color: var(--swh-text);
+  font-weight: 500;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.trees button.pure-button:hover {
+  border-color: var(--swh-red);
+  box-shadow: 0 4px 16px var(--swh-shadow-red);
+  transform: translateY(-1px);
+  background: var(--swh-bg-elevated);
+}
+
+.trees button.pure-button:focus-visible {
+  outline: 2px solid var(--swh-red);
+  outline-offset: 2px;
+}
+
+/* Status buttons: red-tinted hover, colored border */
+.trees button.pure-button.status-positive {
+  border-color: var(--status-positive); color: var(--swh-text);
+}
+.trees button.pure-button.status-positive:hover {
+  box-shadow: 0 4px 16px rgba(24, 117, 60, 0.15) !important;
+}
+
+.trees button.pure-button.status-neutral {
+  border-color: var(--swh-red); color: var(--swh-text);
+}
+.trees button.pure-button.status-neutral:hover {
+  box-shadow: 0 4px 16px var(--swh-shadow-red) !important;
+}
+
+.trees button.pure-button.status-caution {
+  border-color: var(--swh-light-orange); color: var(--swh-text);
+}
+.trees button.pure-button.status-caution:hover {
+  box-shadow: 0 4px 16px rgba(247, 150, 34, 0.15) !important;
+}
+
+.trees button.pure-button.status-negative {
+  border-color: var(--status-negative); color: var(--swh-text);
+}
+.trees button.pure-button.status-negative:hover {
+  box-shadow: 0 4px 16px rgba(206, 5, 0, 0.15) !important;
+}
+
+/* ── Help aside: orange accent ──────────────────────────── */
+aside.help {
+  background: color-mix(in srgb, var(--swh-orange) 5%, var(--swh-bg-elevated));
+  border-left: 4px solid var(--swh-orange);
+  border-radius: 0 6px 6px 0;
+  color: var(--swh-text);
+}
+
+/* ── Summary items ──────────────────────────────────────── */
+.summary article {
+  background: var(--swh-grey-light);
+  border-left: 3px solid var(--swh-red);
+  border-radius: 0 6px 6px 0;
+}
+
+/* ── Score result ───────────────────────────────────────── */
+.score-result { border-radius: 6px }
+
+/* ── Actions nav ────────────────────────────────────────── */
+nav.actions a { color: var(--swh-text-muted) }
+nav.actions a:hover {
+  color: var(--swh-red);
+  text-decoration: none;
+}
+
+/* ── Code ───────────────────────────────────────────────── */
+code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+               Courier, monospace;
+  font-size: 0.875em;
+  padding: 0.2em 0.4em;
+  background: var(--swh-code-bg);
+  border: 1px solid var(--swh-border);
+  border-radius: 4px;
+}
+
+/* ── Selection ──────────────────────────────────────────── */
+::selection {
+  background-color: var(--swh-red);
+  color: #ffffff;
+}
+
+/* ── Print ──────────────────────────────────────────────── */
+@media print {
+  :root {
+    --swh-text: #000;
+    --swh-grey-dark: #000;
+    --swh-bg: #fff;
+    --swh-bg-elevated: #fff;
+  }
+  header::after {
+    background: #e20026;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .trees button.pure-button:hover { transform: none; box-shadow: none }
+}
+
+/* ── Reduced motion ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+  }
+  .trees button.pure-button:hover { transform: none }
+}

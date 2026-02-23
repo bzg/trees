@@ -1,0 +1,175 @@
+/* dsfr.css — DSFR-inspired theme for trees (over Pure CSS 3.x)
+ *
+ * Usage in config.yml:
+ *   framework: pure
+ *   theme: dsfr.css
+ *
+ * Simulates the look and feel of the Système de Design de l'État
+ * without importing the full DSFR package.
+ *
+ * Note: la police Marianne est propriété de l'État français.
+ * Son usage est réservé aux sites de l'administration.
+ * Ce fichier la référence en premier choix mais fonctionne
+ * sans elle via les polices système en fallback.
+ */
+
+/* ── Palette DSFR ────────────────────────────────────────── */
+:root {
+  /* Couleurs institutionnelles */
+  --dsfr-blue-france:     #000091;
+  --dsfr-blue-france-975: #f5f5fe;
+  --dsfr-blue-france-950: #ececfe;
+  --dsfr-blue-france-925: #e3e3fd;
+  --dsfr-blue-france-hover:#1212ff;
+  --dsfr-red-marianne:    #e1000f;
+
+  /* Couleurs fonctionnelles */
+  --dsfr-success:    #18753c;
+  --dsfr-info:       #0063cb;
+  --dsfr-warning:    #b34000;
+  --dsfr-error:      #ce0500;
+
+  /* Gris DSFR */
+  --dsfr-grey-1000:  #161616;
+  --dsfr-grey-625:   #666666;
+  --dsfr-grey-425:   #929292;
+  --dsfr-grey-200:   #e5e5e5;
+  --dsfr-grey-100:   #f0f0f0;
+  --dsfr-grey-50:    #f6f6f6;
+
+  /* Override trees status colors */
+  --status-positive:    var(--dsfr-success);
+  --status-positive-bg: #dffee6;
+  --status-neutral:     var(--dsfr-info);
+  --status-neutral-bg:  #e8edff;
+  --status-caution:     var(--dsfr-warning);
+  --status-caution-bg:  #ffe9e6;
+  --status-negative:    var(--dsfr-error);
+  --status-negative-bg: #ffe9e6;
+}
+
+/* ── Typographie ─────────────────────────────────────────── */
+body {
+  font-family: "Marianne", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--dsfr-grey-1000);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--dsfr-blue-france) }
+a:hover { color: var(--dsfr-blue-france-hover) }
+
+h3 {
+  color: var(--dsfr-grey-1000);
+  font-weight: 700;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+header {
+  background: var(--dsfr-grey-50);
+  border-bottom: 3px solid var(--dsfr-blue-france);
+  padding: 2rem 1.5rem;
+}
+
+header h1 {
+  color: var(--dsfr-blue-france);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+header h2 {
+  color: var(--dsfr-grey-625);
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+footer {
+  background: var(--dsfr-grey-50);
+  border-top: 2px solid var(--dsfr-blue-france);
+  color: var(--dsfr-grey-625);
+}
+
+/* ── Progress bar ────────────────────────────────────────── */
+progress::-webkit-progress-bar { background: var(--dsfr-grey-200) }
+progress::-webkit-progress-value { background: var(--dsfr-blue-france) }
+progress::-moz-progress-bar { background: var(--dsfr-blue-france) }
+
+/* ── Buttons: DSFR secondary style ───────────────────────── */
+.trees button.pure-button {
+  border: 1px solid var(--dsfr-grey-200);
+  border-left: 4px solid var(--dsfr-grey-425);
+  border-radius: 0;
+  background: #fff;
+  color: var(--dsfr-grey-1000);
+  font-weight: 500;
+  padding: 1rem 1.25rem;
+  line-height: 1.5;
+}
+
+.trees button.pure-button:hover {
+  background: var(--dsfr-blue-france-975);
+  border-color: var(--dsfr-grey-200);
+  border-left-color: var(--dsfr-blue-france);
+}
+
+.trees button.pure-button:focus {
+  outline: 2px solid var(--dsfr-blue-france);
+  outline-offset: 2px;
+}
+
+/* Status buttons: colored left border, text stays dark */
+.trees button.pure-button.status-positive {
+  border-left-color: var(--dsfr-success); color: var(--dsfr-grey-1000);
+}
+.trees button.pure-button.status-positive:hover {
+  background: var(--status-positive-bg) !important;
+}
+
+.trees button.pure-button.status-neutral {
+  border-left-color: var(--dsfr-info); color: var(--dsfr-grey-1000);
+}
+.trees button.pure-button.status-neutral:hover {
+  background: var(--status-neutral-bg) !important;
+}
+
+.trees button.pure-button.status-caution {
+  border-left-color: var(--dsfr-warning); color: var(--dsfr-grey-1000);
+}
+.trees button.pure-button.status-caution:hover {
+  background: var(--status-caution-bg) !important;
+}
+
+.trees button.pure-button.status-negative {
+  border-left-color: var(--dsfr-error); color: var(--dsfr-grey-1000);
+}
+.trees button.pure-button.status-negative:hover {
+  background: var(--status-negative-bg) !important;
+}
+
+/* ── Help aside: DSFR callout ────────────────────────────── */
+aside.help {
+  background: var(--dsfr-blue-france-975);
+  border-left: 4px solid var(--dsfr-blue-france);
+  border-radius: 0;
+  color: var(--dsfr-grey-1000);
+  padding: 1rem 1.5rem;
+}
+
+/* ── Summary items ───────────────────────────────────────── */
+.summary article {
+  background: var(--dsfr-grey-50);
+  border-left: 4px solid var(--dsfr-blue-france);
+  border-radius: 0;
+}
+
+/* ── Score result blocks ─────────────────────────────────── */
+.score-result {
+  border-radius: 0;
+  border-left-width: 4px;
+}
+
+/* ── Actions nav ─────────────────────────────────────────── */
+nav.actions a:hover {
+  background: var(--dsfr-blue-france-950);
+  border-radius: 4px;
+}
