@@ -1,0 +1,193 @@
+# choices — Example decision tree configuration
+#
+# This file demonstrates the three choice syntax forms:
+#   1. Compact map:   { Label: target-node }
+#   2. Compact list:  - Label: target-node  (with extra attributes)
+#   3. Full form:     - answer: "Label"  goto: target-node
+#
+# Usage: bb choices.clj config-example.yml index.html
+
+locale: en
+framework: pure
+
+header:
+  title: "Should Snow White kiss the prince?"
+  subtitle: "A critical decision-tree analysis."
+
+footer:
+  text: "Brought to you by the Enchanted Forest Advisory Board."
+  contact: "advice@enchanted-forest.example"
+
+mail-to: "advice@enchanted-forest.example"
+display-summary: true
+display-score: true
+display-score-details: false
+
+score-variables:
+  trust:
+    display: "Trust level"
+    value: 0
+    as-percent: true
+    max: 6
+
+conditional-score-output:
+  high-trust:
+    status: positive
+    message: "Trust level: %trust% — Looks safe!"
+    condition-1:
+      trust: 5
+  medium-trust:
+    status: neutral
+    message: "Trust level: %trust% — Proceed with caution."
+    condition-1:
+      trust: 3
+  low-trust:
+    status: caution
+    message: "Trust level: %trust% — Maybe wait a bit."
+    condition-1:
+      trust: 1
+  no-trust:
+    status: negative
+    message: "Trust level: %trust% — Do not kiss strangers."
+    condition-1:
+      trust: 0
+
+tree:
+  # ── Welcome ──────────────────────────────────────────────
+  - node: welcome
+    text: "You've been asleep for a while. A prince just showed up."
+    home-page: true
+    no-summary: true
+    help: "This guide will help you make the most important decision of your fairy tale career."
+    # Compact map form: just label → target
+    choices:
+      "Let's figure this out": awake-check
+
+  # ── Are you actually awake? ──────────────────────────────
+  - node: awake-check
+    text: "First things first — are you actually awake?"
+    start-page: true
+    progress: "[1 5]"
+    help: "This matters more than you'd think."
+    choices:
+      - "Yes, wide awake": identity-check
+        status: positive
+        summary: "You are fully conscious."
+        score:
+          trust:
+            value: 1
+      - "Still groggy": identity-check
+        status: caution
+        summary: "You are not fully awake yet."
+      - "No, still dreaming": dreaming
+        status: neutral
+        summary: "You might be dreaming all of this."
+
+  # ── Dreaming branch ──────────────────────────────────────
+  - node: dreaming
+    text: "If you're dreaming, nothing matters. Want to wake up first?"
+    progress: "[2 5]"
+    choices:
+      - "Try to wake up": awake-check
+        status: positive
+      - "Stay in the dream": end-dream
+        status: neutral
+
+  # ── Identity check ──────────────────────────────────────
+  - node: identity-check
+    text: "Do you know who this prince is?"
+    progress: "[2 5]"
+    help: "Stranger danger applies even in fairy tales."
+    choices:
+      - "Yes, we've met before": consent-check
+        status: positive
+        summary: "You recognize the prince."
+        score:
+          trust:
+            value: 2
+      - "He looks familiar": references-check
+        status: neutral
+        summary: "The prince looks vaguely familiar."
+        score:
+          trust:
+            value: 1
+      # Full form: useful when the answer contains special characters
+      - answer: "No idea — he just walked in"
+        goto: references-check
+        status: caution
+        summary: "You have no idea who this person is."
+
+  # ── References ───────────────────────────────────────────
+  - node: references-check
+    text: "Did anyone vouch for this prince?"
+    progress: "[3 5]"
+    help: "The dwarfs have opinions. So do the woodland creatures."
+    choices:
+      - "The seven dwarfs approve": consent-check
+        status: positive
+        summary: "The dwarfs gave their approval."
+        score:
+          trust:
+            value: 2
+      - "The forest animals seem fine with him": consent-check
+        status: neutral
+        summary: "The animals are not alarmed."
+        score:
+          trust:
+            value: 1
+      - "Nobody, he just showed up": consent-check
+        status: negative
+        summary: "No references whatsoever."
+
+  # ── Consent ──────────────────────────────────────────────
+  - node: consent-check
+    text: "Most importantly — do YOU actually want to kiss him?"
+    progress: "[4 5]"
+    choices:
+      - "Yes!": motivation-check
+        status: positive
+        summary: "You want to kiss the prince."
+        score:
+          trust:
+            value: 1
+      - "Not sure": end-wait
+        status: caution
+        summary: "You're hesitant."
+      - "Absolutely not": end-no
+        status: negative
+        summary: "You do not want to kiss the prince."
+
+  # ── Motivation ───────────────────────────────────────────
+  - node: motivation-check
+    text: "Why do you want to kiss him?"
+    progress: "[5 5]"
+    choices:
+      - "True love, obviously": end-kiss
+        status: positive
+        summary: "Motivated by true love."
+        score:
+          trust:
+            value: 1
+      - "To break the curse": end-kiss
+        status: neutral
+        summary: "Motivated by curse-breaking pragmatism."
+      - "Peer pressure from the dwarfs": end-wait
+        status: caution
+        summary: "Motivated by peer pressure."
+
+  # ── Endings ──────────────────────────────────────────────
+  - node: end-kiss
+    text: "Go ahead and kiss the prince. Happily ever after awaits (probably)."
+    done: true
+
+  - node: end-wait
+    text: "Maybe wait a bit. Get to know each other first. There's no rush."
+    done: true
+
+  - node: end-no
+    text: "Don't kiss him. You're an independent princess who doesn't need a prince."
+    done: true
+
+  - node: end-dream
+    text: "You stayed in the dream. None of this was real. Or was it?"
+    done: true
