@@ -38,7 +38,7 @@
   [text]
   (let [lines (->> (str/split-lines text)
                    (remove #(re-matches #"\s*#.*" %))
-                   (remove #(re-matches #"\s*" %)))]
+                   (remove str/blank?))]
     (letfn [(parse-block [lines min-indent]
               (when (seq lines)
                 (let [indent  (count-indent (first lines))
@@ -129,8 +129,8 @@
     (number? x)  (str x)
     (string? x)  (str "\"" (escape-js x) "\"")
     (keyword? x) (str "\"" (name x) "\"")
-    (vector? x)  (str "[" (str/join "," (map clj->json x)) "]")
-    (seq? x)     (str "[" (str/join "," (map clj->json x)) "]")
+    (vector? x)      (str "[" (str/join "," (map clj->json x)) "]")
+    (sequential? x)  (str "[" (str/join "," (map clj->json x)) "]")
     (map? x)     (str "{"
                       (str/join ","
                                 (map (fn [[k v]]
@@ -150,7 +150,7 @@
   (when s
     (-> (str s)
         (str/replace #"\*\*(.+?)\*\*" "<strong>$1</strong>")
-        (str/replace #"_(.+?)_" "<em>$1</em>")
+        (str/replace #"(?<!\w)_(.+?)_(?!\w)" "<em>$1</em>")
         (str/replace #"`(.+?)`" "<code>$1</code>")
         (str/replace #"\[([^\]]+)\]\(([^)]+)\)"
                      "<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>"))))
@@ -237,7 +237,7 @@
                               (if (string? v)
                                 {:answer (name k) :goto v}
                                 (normalize-choice (assoc v :answer (name k)))))
-                           choices)
+                            choices)
     :else             choices))
 
 (defn- preprocess-choice
@@ -248,9 +248,8 @@
     (:explain choice) (update :explain md->html)
     (:status choice)  (update :status #(get status->css % %))
     ;; Pre-strip markdown from summary for email use (keep raw for display)
-    (:summary choice) (assoc :summaryText (if (string? (:summary choice))
-                                            (md-strip (:summary choice))
-                                            (:summary choice)))))
+    (:summary choice) (assoc :summaryText (let [s (:summary choice)]
+                                            (if (string? s) (md-strip s) s)))))
 
 (defn- parse-progress
   "Parse progress string \"[current max]\" into {:value N :max M}."
@@ -286,46 +285,19 @@
 ;; from CFG so it stays framework-agnostic.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private frameworks
-  {:pure
-   {:cdn     "https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css"
-    :classes {:grid "pure-g" :cell "pure-u-1" :button "pure-button"
-              :progress "" :heading ""}
-    :css
-    "/* Status colors */
+(def ^:private base-css
+  "/* Status colors */
 :root{
   --status-positive:#18753c;--status-positive-bg:color-mix(in srgb,#18753c 10%,transparent);
   --status-neutral:#0063cb;--status-neutral-bg:color-mix(in srgb,#0063cb 10%,transparent);
   --status-caution:#b34000;--status-caution-bg:color-mix(in srgb,#b34000 10%,transparent);
   --status-negative:#ce0500;--status-negative-bg:color-mix(in srgb,#ce0500 10%,transparent)}
-/* Base */
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
-  color:#333;line-height:1.6}
-a{color:#0063cb}
 /* Layout */
 header{text-align:center;padding:2rem 1rem;background:#fafafa;border-bottom:2px solid #e0e0e0}
 header h1{font-size:1.8rem;margin:0 0 .3rem}
 header h2{font-size:1.1rem;font-weight:400;color:#666;margin:0}
 main{max-width:720px;margin:0 auto;padding:1.5rem 1rem 2rem}
 footer{text-align:center;padding:1.5rem 1rem;font-size:.875em;color:#999;border-top:1px solid #e0e0e0;margin-top:2rem}
-h3{font-size:1.25rem;margin:0 0 1rem}
-/* Progress */
-progress{width:100%;height:8px;margin-bottom:1.5rem;-webkit-appearance:none;appearance:none;border:none;
-  border-radius:4px;overflow:hidden}
-progress::-webkit-progress-bar{background:#e0e0e0;border-radius:4px}
-progress::-webkit-progress-value{background:#0078e7;border-radius:4px}
-progress::-moz-progress-bar{background:#0078e7;border-radius:4px}
-/* Trees grid */
-.trees{margin-top:1.5rem}
-.trees .pure-g{gap:.75rem}
-.trees .pure-g .pure-u-1{margin:0;padding:0}
-@media(min-width:568px){.trees .pure-g .pure-u-1{width:auto;flex:1 1 200px}}
-.trees button.pure-button{width:100%;text-align:left;padding:.85rem 1.1rem;
-  border:2px solid #e0e0e0;border-radius:.25rem;background:#fff;color:#333;
-  font-size:1rem;line-height:1.4;transition:border-color .15s,background .15s}
-.trees button.pure-button:hover{border-color:#0078e7;background:#f0f6ff}
-.trees button.pure-button div{display:flex;flex-direction:column}
-.trees button.pure-button small{font-size:.82em;color:#888;margin-top:.4rem}
 /* Status */
 .status-positive{border-color:var(--status-positive)!important;color:var(--status-positive)}
 .status-positive:hover{background:var(--status-positive-bg)!important}
@@ -335,9 +307,6 @@ progress::-moz-progress-bar{background:#0078e7;border-radius:4px}
 .status-caution:hover{background:var(--status-caution-bg)!important}
 .status-negative{border-color:var(--status-negative)!important;color:var(--status-negative)}
 .status-negative:hover{background:var(--status-negative-bg)!important}
-/* Help */
-aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
-  border-radius:.25rem;border-left:4px solid #0078e7;font-size:.95em}
 /* Actions */
 nav.actions{display:flex;gap:1rem;margin-bottom:1.5rem}
 nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem}
@@ -350,29 +319,50 @@ nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem
 .score-result.status-positive{background:var(--status-positive-bg);color:var(--status-positive);border:1px solid var(--status-positive)}
 .score-result.status-neutral{background:var(--status-neutral-bg);color:var(--status-neutral);border:1px solid var(--status-neutral)}
 .score-result.status-caution{background:var(--status-caution-bg);color:var(--status-caution);border:1px solid var(--status-caution)}
-.score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}"}
+.score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}
+.trees{margin-top:1.5rem}")
+
+(def ^:private frameworks
+  {:pure
+   {:cdn     "https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css"
+    :classes {:grid "pure-g" :cell "pure-u-1" :button "pure-button"
+              :progress "" :heading ""}
+    :css
+    (str base-css "
+/* Pure base */
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  color:#333;line-height:1.6}
+a{color:#0063cb}
+h3{font-size:1.25rem;margin:0 0 1rem}
+/* Progress */
+progress{width:100%;height:8px;margin-bottom:1.5rem;-webkit-appearance:none;appearance:none;border:none;
+  border-radius:4px;overflow:hidden}
+progress::-webkit-progress-bar{background:#e0e0e0;border-radius:4px}
+progress::-webkit-progress-value{background:#0078e7;border-radius:4px}
+progress::-moz-progress-bar{background:#0078e7;border-radius:4px}
+/* Grid */
+.trees .pure-g{gap:.75rem}
+.trees .pure-g .pure-u-1{margin:0;padding:0}
+@media(min-width:568px){.trees .pure-g .pure-u-1{width:auto;flex:1 1 200px}}
+.trees button.pure-button{width:100%;text-align:left;padding:.85rem 1.1rem;
+  border:2px solid #e0e0e0;border-radius:.25rem;background:#fff;color:#333;
+  font-size:1rem;line-height:1.4;transition:border-color .15s,background .15s}
+.trees button.pure-button:hover{border-color:#0078e7;background:#f0f6ff}
+.trees button.pure-button div{display:flex;flex-direction:column}
+.trees button.pure-button small{font-size:.82em;color:#888;margin-top:.4rem}
+/* Help */
+aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
+  border-radius:.25rem;border-left:4px solid #0078e7;font-size:.95em}")}
 
    :bulma
    {:cdn     "https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"
     :classes {:grid "columns is-multiline" :cell "column is-narrow" :button "button"
               :progress "progress is-small is-primary" :heading "title is-4"}
     :css
-    "/* Status colors */
-:root{
-  --status-positive:#18753c;--status-positive-bg:color-mix(in srgb,#18753c 10%,transparent);
-  --status-neutral:#0063cb;--status-neutral-bg:color-mix(in srgb,#0063cb 10%,transparent);
-  --status-caution:#b34000;--status-caution-bg:color-mix(in srgb,#b34000 10%,transparent);
-  --status-negative:#ce0500;--status-negative-bg:color-mix(in srgb,#ce0500 10%,transparent)}
-/* Layout */
-header{text-align:center;padding:2rem 1rem;background:#fafafa;border-bottom:2px solid #e0e0e0}
-header h1{font-size:1.8rem;margin:0 0 .3rem}
-header h2{font-size:1.1rem;font-weight:400;color:#666;margin:0}
-main{max-width:720px;margin:0 auto;padding:1.5rem 1rem 2rem}
-footer{text-align:center;padding:1.5rem 1rem;font-size:.875em;color:#999;border-top:1px solid #e0e0e0;margin-top:2rem}
+    (str base-css "
 /* Progress */
 progress.progress{margin-bottom:1.5rem}
-/* Trees grid */
-.trees{margin-top:1.5rem}
+/* Grid */
 .trees .columns{gap:.5rem}
 .trees .column{padding:.25rem}
 .trees button.button{width:100%;height:auto;white-space:normal;text-align:left;
@@ -381,36 +371,20 @@ progress.progress{margin-bottom:1.5rem}
 .trees button.button:hover{border-color:#485fc7;background:#f0f3ff}
 .trees button.button div{display:flex;flex-direction:column}
 .trees button.button small{font-size:.82em;color:#888;margin-top:.4rem}
-/* Status */
-.status-positive{border-color:var(--status-positive)!important;color:var(--status-positive)!important}
-.status-positive:hover{background:var(--status-positive-bg)!important}
-.status-neutral{border-color:var(--status-neutral)!important;color:var(--status-neutral)!important}
-.status-neutral:hover{background:var(--status-neutral-bg)!important}
-.status-caution{border-color:var(--status-caution)!important;color:var(--status-caution)!important}
-.status-caution:hover{background:var(--status-caution-bg)!important}
-.status-negative{border-color:var(--status-negative)!important;color:var(--status-negative)!important}
-.status-negative:hover{background:var(--status-negative-bg)!important}
+/* Bulma needs !important on color to override its defaults */
+.status-positive,.status-neutral,.status-caution,.status-negative{color:inherit!important}
+.status-positive{color:var(--status-positive)!important}
+.status-neutral{color:var(--status-neutral)!important}
+.status-caution{color:var(--status-caution)!important}
+.status-negative{color:var(--status-negative)!important}
 /* Help */
 aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
-  border-radius:.25rem;border-left:4px solid #485fc7;font-size:.95em}
-/* Actions */
-nav.actions{display:flex;gap:1rem;margin-bottom:1.5rem}
-nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem}
-/* Summary */
-.summary{margin-top:1rem}
-.summary article{margin:0 0 .6rem;padding:.75rem 1rem;background:#f8f8f8;
-  border-radius:.25rem;border-left:3px solid #ddd}
-/* Score */
-.score-result{margin:1.25rem 0;padding:1rem 1.2rem;border-radius:.25rem;font-weight:600}
-.score-result.status-positive{background:var(--status-positive-bg);color:var(--status-positive);border:1px solid var(--status-positive)}
-.score-result.status-neutral{background:var(--status-neutral-bg);color:var(--status-neutral);border:1px solid var(--status-neutral)}
-.score-result.status-caution{background:var(--status-caution-bg);color:var(--status-caution);border:1px solid var(--status-caution)}
-.score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}"}})
+  border-radius:.25rem;border-left:4px solid #485fc7;font-size:.95em}")}})
 
 (defn- get-framework
   "Look up framework by name. Defaults to :pure."
-  [name]
-  (get frameworks (keyword (or name "pure")) (:pure frameworks)))
+  [fw-name]
+  (get frameworks (keyword (or fw-name "pure")) (:pure frameworks)))
 
 ;; ---------------------------------------------------------------------------
 ;; JavaScript runtime (minimal: DOM rendering, navigation, score tracking)
@@ -452,13 +426,13 @@ function render(){
   if(node.progress){var p=el('progress',CFG.cls.progress,'');p.value=node.progress.value;p.max=node.progress.max;main.appendChild(p)}
   main.appendChild(el('h3',CFG.cls.heading,node.text));
   if(node.done){
+    var lh=hist[hist.length-1];
     var nav=el('nav','actions','');
     var tl=el('a','','\\ud83d\\udd17');tl.title=I18N.toggleSummaryStyle;tl.href='javascript:void(0)';
     tl.onclick=function(){showA=!showA;render()};nav.appendChild(tl);
     var rl=el('a','','\\ud83d\\udd03');rl.title=I18N.redo;rl.href='#'+(START||HOME||'0');
     rl.onclick=function(){hist=[{score:dc(SV)}]};nav.appendChild(rl);
     if(CFG.mailTo){var ml=el('a','','\\ud83d\\udce9');ml.title=I18N.mailToMessage;
-      var lh=hist[hist.length-1];
       var its=showA?(lh.answers||[]).filter(Boolean):(lh.questions||[]).filter(Boolean);
       var bp=its.map(function(i){return Array.isArray(i)?i.filter(Boolean).map(sh).join(' \\u2192 '):sh(String(i))}).reverse().join('\\n');
       ml.href='mailto:'+CFG.mailTo+'?subject='+encodeURIComponent(I18N.mailSubject)+'&body='+encodeURIComponent(bp);
@@ -466,7 +440,7 @@ function render(){
     main.appendChild(nav);
     if(node.help)main.appendChild(el('aside','help',node.help));
     var sec=el('section','summary','');
-    if(CFG.displayScore){var lh=hist[hist.length-1],flat=fs(lh.score);
+    if(CFG.displayScore){var flat=fs(lh.score);
       if(CSO){var res=csr(flat);
         if(res&&res.msg)sec.appendChild(el('div','score-result '+(res.status||''),fmt(res.msg,flat)))}
       if(CFG.displayScoreDetails){var dd=el('div','score-details','');
@@ -474,7 +448,7 @@ function render(){
         sec.appendChild(dd)}
       if(typeof CFG.displayUnconditionally==='string'&&CFG.displayUnconditionally)
         sec.appendChild(el('aside','',CFG.displayUnconditionally))}
-    if(CFG.displaySummary){var lh=hist[hist.length-1];
+    if(CFG.displaySummary){
       var its=showA?(lh.answers||[]).filter(Boolean).reverse():(lh.questions||[]).filter(Boolean).reverse();
       its.forEach(function(o){var art=el('article','','');
         if(typeof o==='string')art.innerHTML='<div>'+o+'</div>';
@@ -526,38 +500,49 @@ render();")
                     (let [f (java.io.File. (str t))]
                       (when (.exists f) (slurp f))))
         header-html (str "<div><h1>" (escape-html (or (:title header) ""))
-                         "</h1><h2>" (or (:subtitle header) "") "</h2></div>")
-        footer-html (str "<div>" (or (:text footer) "")
+                         "</h1><h2>" (escape-html (or (:subtitle header) "")) "</h2></div>")
+        footer-html (str "<div>" (escape-html (or (:text footer) ""))
                          (when-let [c (:contact footer)]
-                           (str "<p>" (:contactIntro i18n)
-                                "<a href=\"mailto:" c "\">" c "</a></p>"))
-                         "</div>")]
-    (str "<!DOCTYPE html>\n<html lang=\"" (name locale) "\">\n<head>\n"
-         "<meta charset=\"utf-8\"/>\n"
-         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\n"
-         "<title>" (escape-html (or (:title header) "Trees")) "</title>\n"
-         "<link rel=\"stylesheet\" href=\"" (:cdn fw) "\"/>\n"
-         "<style>" (:css fw) "</style>\n"
-         (when theme-css (str "<style>" theme-css "</style>\n"))
-         "</head>\n<body>\n<div id=\"app\"></div>\n<script>\n"
-         "var TREE=" (clj->json nodes) ";\n"
-         "var SV=" (clj->json (or (:score-variables config) {})) ";\n"
-         "var CSO=" (clj->json (:conditional-score-output config)) ";\n"
-         "var CFG=" (clj->json {:displaySummary         (boolean (:display-summary config))
-                                :displayScore           (boolean (:display-score config))
-                                :displayScoreDetails    (boolean (:display-score-details config))
-                                :displayUnconditionally (or (:display-unconditionally config) false)
-                                :mailTo                 (or (:mail-to config) "")
-                                :home                   home
-                                :start                  start
-                                :cls                    (:classes fw)
-                                :hasHeader              (boolean (not-empty header))
-                                :hasFooter              (boolean (not-empty footer))
-                                :headerHtml             header-html
-                                :footerHtml             footer-html}) ";\n"
-         "var I18N=" (clj->json i18n) ";\n"
-         js-runtime
-         "\n</script>\n</body>\n</html>")))
+                           (str "<p>" (escape-html (:contactIntro i18n))
+                                "<a href=\"mailto:" (escape-html c) "\">"
+                                (escape-html c) "</a></p>"))
+                         "</div>")
+        cfg-json  (clj->json {:displaySummary         (boolean (:display-summary config))
+                               :displayScore           (boolean (:display-score config))
+                               :displayScoreDetails    (boolean (:display-score-details config))
+                               :displayUnconditionally (or (:display-unconditionally config) false)
+                               :mailTo                 (or (:mail-to config) "")
+                               :home                   home
+                               :start                  start
+                               :cls                    (:classes fw)
+                               :hasHeader              (boolean (not-empty header))
+                               :hasFooter              (boolean (not-empty footer))
+                               :headerHtml             header-html
+                               :footerHtml             footer-html})]
+    (->> ["<!DOCTYPE html>"
+          (str "<html lang=\"" (name locale) "\">")
+          "<head>"
+          "<meta charset=\"utf-8\"/>"
+          "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>"
+          (str "<title>" (escape-html (or (:title header) "Trees")) "</title>")
+          (str "<link rel=\"stylesheet\" href=\"" (:cdn fw) "\"/>")
+          (str "<style>" (:css fw) "</style>")
+          (when theme-css (str "<style>" theme-css "</style>"))
+          "</head>"
+          "<body>"
+          "<div id=\"app\"></div>"
+          "<script>"
+          (str "var TREE=" (clj->json nodes) ";")
+          (str "var SV=" (clj->json (or (:score-variables config) {})) ";")
+          (str "var CSO=" (clj->json (:conditional-score-output config)) ";")
+          (str "var CFG=" cfg-json ";")
+          (str "var I18N=" (clj->json i18n) ";")
+          js-runtime
+          "</script>"
+          "</body>"
+          "</html>"]
+         (remove nil?)
+         (str/join "\n"))))
 
 ;; ---------------------------------------------------------------------------
 ;; Main
