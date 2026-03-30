@@ -18,13 +18,39 @@ You can try it against the =config-example.yml= file provided in this repository
 
 : ~$ trees config-example.yml
 
+* CSS frameworks
+
+Set =framework= in your config file.  The default is =pico=.
+
+| Framework | Value   |
+|-----------+---------|
+| [[https://picocss.com][Pico 2]]    | =pico=  |
+| [[https://purecss.io][Pure CSS]]   | =pure=  |
+| [[https://bulma.io][Bulma]]     | =bulma= |
+
+* Themes
+
+When using Pico, you can load a theme via URL or local file:
+
+#+begin_src yaml
+theme-url: "https://cdn.jsdelivr.net/gh/bzg/pico-themes@latest/doric.css"
+#+end_src
+
+Or with a local file:
+
+#+begin_src yaml
+theme: "/path/to/theme.css"
+#+end_src
+
+Available themes from [[https://github.com/bzg/pico-themes][pico-themes]]: =swh=, =org=, =doric=, =lincoln=, =teletype=, =ashes=.
+
 * Feedback
 
 To get or provide feedback, send an email to *bzg@bzg.fr*.
 
 * Requirements
 
-=topics= is written as a [[https://clojure.org][Clojure]] [[https://babashka.org][Babashka]] script and we recommend
+=trees= is written as a [[https://clojure.org][Clojure]] [[https://babashka.org][Babashka]] script and we recommend
 installing it with [[https://github.com/babashka/bbin][bbin]]. Install everything:
 
 #+begin_src sh
@@ -36,6 +62,15 @@ For detailed installation instructions:
 - [[https://clojure.org/guides/install_clojure][Install Clojure]]
 - [[https://github.com/babashka/babashka#installation][Install babashka]]
 - [[https://github.com/babashka/bbin#installation][Install bbin]]
+
+* Contributing
+
+- Send a [[mailto:~bzg/dev@lists.sr.ht?subject=\[BUG\] trees: <SHORT EXPLICIT BUG DESCRIPTION>][bug report]]
+- Send a [[mailto:~bzg/dev@lists.sr.ht?subject=\[PATCH\] trees: <COMMIT SUMMARY>][patch]] (please use =git format-patch=)
+- Send a [[mailto:~bzg/dev@lists.sr.ht?subject=\[FR\] trees: <FEATURE REQUEST>][feature request]]
+- Share any [[mailto:~bzg/dev@lists.sr.ht?subject=trees: <ANYTHING>][other question or idea]]
+
+You can also [[mailto:bzg@bzg.fr][send me an email]] and support my work on [[https://liberapay.com/bzg/][liberapay]].
 
 * Support the Clojure(script) ecosystem
 
