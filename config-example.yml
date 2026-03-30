@@ -8,7 +8,7 @@
 # Usage: bb choices.clj config-example.yml index.html
 
 locale: en
-framework: pure
+framework: pico
 
 header:
   title: "Should Snow White kiss the prince?"

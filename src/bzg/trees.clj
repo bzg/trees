@@ -354,6 +354,59 @@ progress::-moz-progress-bar{background:#0078e7;border-radius:4px}
 aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
   border-radius:.25rem;border-left:4px solid #0078e7;font-size:.95em}")}
 
+   :pico
+   {:cdn     "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    :classes {:grid "trees-grid" :cell "trees-cell" :button "outline"
+              :progress "" :heading ""}
+    :css
+    "/* Status colors */
+:root{
+  --status-positive:#18753c;--status-positive-bg:color-mix(in srgb,#18753c 10%,transparent);
+  --status-neutral:#0063cb;--status-neutral-bg:color-mix(in srgb,#0063cb 10%,transparent);
+  --status-caution:#b34000;--status-caution-bg:color-mix(in srgb,#b34000 10%,transparent);
+  --status-negative:#ce0500;--status-negative-bg:color-mix(in srgb,#ce0500 10%,transparent)}
+/* Layout */
+header{text-align:center}
+header h1{font-size:1.8rem;margin:0 0 .3rem}
+header h2{font-size:1.1rem;font-weight:400;margin:0}
+main{max-width:720px;margin:0 auto}
+/* Status */
+.status-positive{border-color:var(--status-positive)!important;color:var(--status-positive)}
+.status-positive:hover{background:var(--status-positive-bg)!important}
+.status-neutral{border-color:var(--status-neutral)!important;color:var(--status-neutral)}
+.status-neutral:hover{background:var(--status-neutral-bg)!important}
+.status-caution{border-color:var(--status-caution)!important;color:var(--status-caution)}
+.status-caution:hover{background:var(--status-caution-bg)!important}
+.status-negative{border-color:var(--status-negative)!important;color:var(--status-negative)}
+.status-negative:hover{background:var(--status-negative-bg)!important}
+/* Actions */
+nav.actions{display:flex;gap:1rem;margin-bottom:1.5rem}
+nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem}
+/* Summary */
+.summary{margin-top:1rem}
+.summary article{margin:0 0 .6rem;padding:.75rem 1rem;
+  background:var(--pico-card-background-color);
+  border-radius:.25rem;border-left:3px solid var(--pico-muted-border-color)}
+/* Score */
+.score-result{margin:1.25rem 0;padding:1rem 1.2rem;border-radius:.25rem;font-weight:600}
+.score-result.status-positive{background:var(--status-positive-bg);color:var(--status-positive);border:1px solid var(--status-positive)}
+.score-result.status-neutral{background:var(--status-neutral-bg);color:var(--status-neutral);border:1px solid var(--status-neutral)}
+.score-result.status-caution{background:var(--status-caution-bg);color:var(--status-caution);border:1px solid var(--status-caution)}
+.score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}
+/* Grid */
+.trees{margin-top:1.5rem}
+.trees-grid{display:flex;flex-wrap:wrap;gap:.75rem}
+.trees-cell{flex:1 1 200px;min-width:0}
+.trees button{width:100%;text-align:left;padding:.85rem 1.1rem;
+  border:2px solid var(--pico-muted-border-color);border-radius:.25rem;
+  font-size:1rem;line-height:1.4;transition:border-color .15s,background .15s}
+.trees button:hover{border-color:var(--pico-primary);background:var(--pico-primary-focus)}
+.trees button div{display:flex;flex-direction:column}
+.trees button small{font-size:.82em;opacity:.6;margin-top:.4rem}
+/* Help */
+aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:var(--pico-card-background-color);
+  border-radius:.25rem;border-left:4px solid var(--pico-primary);font-size:.95em}"}
+
    :bulma
    {:cdn     "https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"
     :classes {:grid "columns is-multiline" :cell "column is-narrow" :button "button"
@@ -382,9 +435,9 @@ aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
   border-radius:.25rem;border-left:4px solid #485fc7;font-size:.95em}")}})
 
 (defn- get-framework
-  "Look up framework by name. Defaults to :pure."
+  "Look up framework by name. Defaults to :pico."
   [fw-name]
-  (get frameworks (keyword (or fw-name "pure")) (:pure frameworks)))
+  (get frameworks (keyword (or fw-name "pico")) (:pico frameworks)))
 
 ;; ---------------------------------------------------------------------------
 ;; JavaScript runtime (minimal: DOM rendering, navigation, score tracking)
@@ -496,6 +549,7 @@ render();")
         {:keys [nodes home start]} (preprocess-tree (:tree config))
         header  (:header config)
         footer  (:footer config)
+        theme-url (:theme-url config)
         theme-css (when-let [t (:theme config)]
                     (let [f (java.io.File. (str t))]
                       (when (.exists f) (slurp f))))
@@ -527,6 +581,7 @@ render();")
           (str "<title>" (escape-html (or (:title header) "Trees")) "</title>")
           (str "<link rel=\"stylesheet\" href=\"" (:cdn fw) "\"/>")
           (str "<style>" (:css fw) "</style>")
+          (when theme-url (str "<link rel=\"stylesheet\" href=\"" theme-url "\"/>"))
           (when theme-css (str "<style>" theme-css "</style>"))
           "</head>"
           "<body>"
