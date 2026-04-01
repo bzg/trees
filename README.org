@@ -1,5 +1,7 @@
 #+title: Trees
 
+[[https://intver.org/][https://img.shields.io/badge/versioning-intver.org-blue.svg?style=for-the-badge]]
+
 Generate a static HTML/CSS/JS page that allows users to walk through a decision tree.
 
 #+html: <img src="trees.webp" />
@@ -71,6 +73,14 @@ For detailed installation instructions:
 - Share any [[mailto:~bzg/dev@lists.sr.ht][other question or idea]]
 
 You can also [[mailto:bzg@bzg.fr][send me an email]] and support my work on [[https://liberapay.com/bzg/][liberapay]].
+
+* Intentional Versioning
+
+This project uses [[https://intver.org][Intentional Versioning]], here are the three audiences:
+
+- =x= : end users who use trees
+- =y= : external packagers
+- =z= : contributors to the codebase
 
 * Support the Clojure(script) ecosystem
 
