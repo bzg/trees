@@ -49,10 +49,6 @@ Available themes from [[https://github.com/bzg/pico-themes][pico-themes]]: =swh=
 
 For backward compatibility, =theme-url= and =theme= are still supported.
 
-* Feedback
-
-To get or provide feedback, send an email to *bzg@bzg.fr*.
-
 * Requirements
 
 =trees= is written as a [[https://clojure.org][Clojure]] [[https://babashka.org][Babashka]] script and we recommend
