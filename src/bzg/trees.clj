@@ -537,6 +537,35 @@ addEventListener('hashchange',function(){
 render();")
 
 ;; ---------------------------------------------------------------------------
+;; CSS theme resolution
+;; ---------------------------------------------------------------------------
+
+(defn- http-url? [s]
+  (or (str/starts-with? s "http://")
+      (str/starts-with? s "https://")))
+
+(defn resolve-css-theme
+  "Resolve a theme value to {:link url} or {:inline content}.
+  Priority: https:// URL, file:/// URL, local .css path, pico-themes name."
+  [css-theme]
+  (when css-theme
+    (cond
+      (http-url? css-theme)
+      {:link css-theme}
+      (str/starts-with? css-theme "file:///")
+      (let [path (subs css-theme 7)]
+        (if (.exists (java.io.File. path))
+          {:inline (slurp path)}
+          (do (println "Warning: theme file not found:" path) nil)))
+      (and (str/ends-with? css-theme ".css")
+           (.exists (java.io.File. css-theme)))
+      {:inline (slurp css-theme)}
+      (not (str/includes? css-theme " "))
+      {:link (str "https://cdn.jsdelivr.net/gh/bzg/pico-themes@latest/" css-theme ".css")}
+      :else
+      (do (println "Warning: unrecognized CSS theme value:" css-theme) nil))))
+
+;; ---------------------------------------------------------------------------
 ;; HTML generation
 ;; ---------------------------------------------------------------------------
 
@@ -549,10 +578,11 @@ render();")
         {:keys [nodes home start]} (preprocess-tree (:tree config))
         header  (:header config)
         footer  (:footer config)
-        theme-url (:theme-url config)
-        theme-css (when-let [t (:theme config)]
-                    (let [f (java.io.File. (str t))]
-                      (when (.exists f) (slurp f))))
+        resolved  (resolve-css-theme (or (:css-theme config)
+                                        (:theme-url config)
+                                        (:theme config)))
+        theme-url (:link resolved)
+        theme-css (:inline resolved)
         header-html (str "<div><h1>" (escape-html (or (:title header) ""))
                          "</h1><h2>" (escape-html (or (:subtitle header) "")) "</h2></div>")
         footer-html (str "<div>" (escape-html (or (:text footer) ""))
