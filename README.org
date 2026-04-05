@@ -24,27 +24,30 @@ You can try it against the =config-example.yml= file provided in this repository
 
 Set =framework= in your config file.  The default is =pico=.
 
-| Framework | Value   |
-|-----------+---------|
+| Framework | Value |
+|-----------+-------|
 | [[https://picocss.com][Pico 2]]    | =pico=  |
-| [[https://purecss.io][Pure CSS]]   | =pure=  |
+| [[https://purecss.io][Pure CSS]]  | =pure=  |
 | [[https://bulma.io][Bulma]]     | =bulma= |
 
 * Themes
 
-When using Pico, you can load a theme via URL or local file:
+When using Pico, you can set a theme with =css-theme=:
 
 #+begin_src yaml
-theme-url: "https://cdn.jsdelivr.net/gh/bzg/pico-themes@latest/doric.css"
+css-theme: "doric"
 #+end_src
 
-Or with a local file:
+The =css-theme= option accepts:
 
-#+begin_src yaml
-theme: "/path/to/theme.css"
-#+end_src
+- A pico-themes name (e.g. =ashes=, =doric=, =swh=)
+- An =https://= URL to a remote CSS file
+- A =file:///= URL to a local CSS file
+- A local =.css= file path
 
 Available themes from [[https://github.com/bzg/pico-themes][pico-themes]]: =swh=, =org=, =doric=, =lincoln=, =teletype=, =ashes=.
+
+For backward compatibility, =theme-url= and =theme= are still supported.
 
 * Feedback
 
