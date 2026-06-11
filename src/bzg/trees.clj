@@ -10,7 +10,8 @@
 ;; Usage: bb trees.clj [config.yml] [output.html]
 ;;        Defaults: config.yml -> index.html
 
-(require '[clojure.string :as str])
+(ns bzg.trees
+  (:require [clojure.string :as str]))
 
 ;; ---------------------------------------------------------------------------
 ;; YAML parser (minimal, sufficient for trees config.yml)
@@ -633,13 +634,17 @@ render();")
 ;; Main
 ;; ---------------------------------------------------------------------------
 
-(let [config-file (or (first *command-line-args*) "config.yml")
-      output-file (or (second *command-line-args*) "index.html")]
-  (when-not (.exists (java.io.File. config-file))
-    (println (str "Error: " config-file " not found."))
-    (System/exit 1))
-  (let [config (parse-yaml (slurp config-file))
-        html   (generate-html config)]
-    (spit output-file html)
-    (println (str "Generated " output-file " from " config-file
-                  " (" (count (:tree config)) " nodes)"))))
+(defn -main [& args]
+  (let [config-file (or (first args) "config.yml")
+        output-file (or (second args) "index.html")]
+    (when-not (.exists (java.io.File. config-file))
+      (println (str "Error: " config-file " not found."))
+      (System/exit 1))
+    (let [config (parse-yaml (slurp config-file))
+          html   (generate-html config)]
+      (spit output-file html)
+      (println (str "Generated " output-file " from " config-file
+                    " (" (count (:tree config)) " nodes)")))))
+
+(when (= *file* (System/getProperty "babashka.file"))
+  (apply -main *command-line-args*))

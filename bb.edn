@@ -1,2 +1,2 @@
-{:paths ["src/bzg"]
+{:paths ["src"]
  :bbin/bin {trees {:main-opts ["-m" "bzg.trees"]}}}
