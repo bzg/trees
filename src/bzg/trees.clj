@@ -11,7 +11,9 @@
 ;;        Defaults: config.yml -> index.html
 
 (ns bzg.trees
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [babashka.process :as process]
+            [clojure.edn :as edn]))
 
 ;; ---------------------------------------------------------------------------
 ;; YAML parser (minimal, sufficient for trees config.yml)
@@ -634,17 +636,32 @@ render();")
 ;; Main
 ;; ---------------------------------------------------------------------------
 
+(defn- bbin-version
+  "Version string read from bbin's install metadata (`bbin ls --edn`), or nil
+  when bbin is absent or trees was not installed through it."
+  []
+  (try
+    (let [{:keys [out exit]} (process/shell {:out :string :err :string :continue true}
+                                            "bbin" "ls" "--edn")]
+      (when (zero? exit)
+        (some (fn [e] (when (= 'io.github.bzg/trees (:lib e))
+                        (get-in e [:coords :git/tag])))
+              (vals (edn/read-string out)))))
+    (catch Exception _ nil)))
+
 (defn -main [& args]
-  (let [config-file (or (first args) "config.yml")
-        output-file (or (second args) "index.html")]
-    (when-not (.exists (java.io.File. config-file))
-      (println (str "Error: " config-file " not found."))
-      (System/exit 1))
-    (let [config (parse-yaml (slurp config-file))
-          html   (generate-html config)]
-      (spit output-file html)
-      (println (str "Generated " output-file " from " config-file
-                    " (" (count (:tree config)) " nodes)")))))
+  (if (contains? #{"-v" "--version"} (first args))
+    (println (str "trees " (or (bbin-version) "(version unknown)")))
+    (let [config-file (or (first args) "config.yml")
+          output-file (or (second args) "index.html")]
+      (when-not (.exists (java.io.File. config-file))
+        (println (str "Error: " config-file " not found."))
+        (System/exit 1))
+      (let [config (parse-yaml (slurp config-file))
+            html   (generate-html config)]
+        (spit output-file html)
+        (println (str "Generated " output-file " from " config-file
+                      " (" (count (:tree config)) " nodes)"))))))
 
 (when (= *file* (System/getProperty "babashka.file"))
   (apply -main *command-line-args*))
