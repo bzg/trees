@@ -1,14 +1,15 @@
-# choices — Example decision tree configuration
+# trees — Example decision tree configuration
 #
 # This file demonstrates the three choice syntax forms:
 #   1. Compact map:   { Label: target-node }
 #   2. Compact list:  - Label: target-node  (with extra attributes)
 #   3. Full form:     - answer: "Label"  goto: target-node
 #
-# Usage: bb choices.clj config-example.yml index.html
+# Usage: trees config-example.yml [index.html]
 
-locale: en
-framework: pico
+locale: en  # en, fr, de or sv
+framework: pico  # pico (default), pure or bulma
+# css-theme: "doric"  # pico-themes name, http(s):// URL or local .css file
 
 header:
   title: "Should Snow White kiss the prince?"

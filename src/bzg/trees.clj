@@ -15,12 +15,48 @@
             [babashka.process :as process]
             [clojure.edn :as edn]))
 
+(defn- warn
+  "Print a warning or error message to stderr."
+  [& msg]
+  (binding [*out* *err*] (apply println msg)))
+
 ;; ---------------------------------------------------------------------------
 ;; YAML parser (minimal, sufficient for trees config.yml)
 ;; ---------------------------------------------------------------------------
 
 (defn- count-indent [line]
   (- (count line) (count (str/triml line))))
+
+(defn- unquote-str
+  "Strip matching surrounding single or double quotes from a string."
+  [s]
+  (if (and (> (count s) 1)
+           (or (and (str/starts-with? s "\"") (str/ends-with? s "\""))
+               (and (str/starts-with? s "'") (str/ends-with? s "'"))))
+    (subs s 1 (dec (count s)))
+    s))
+
+(defn- yaml-key
+  "Turn a YAML map key into a keyword.  The explicit nil namespace keeps
+   keys containing a slash intact (e.g. compact choice labels)."
+  [s]
+  (keyword nil (unquote-str (str/trim s))))
+
+(defn- strip-comment
+  "Remove a trailing '# comment' that is outside quotes and preceded by
+   whitespace (or starts the line)."
+  [line]
+  (loop [i 0 q nil]
+    (if (>= i (count line))
+      line
+      (let [c (.charAt line i)]
+        (cond
+          (and q (= c q)) (recur (inc i) nil)
+          (and (nil? q) (or (= c \") (= c \'))) (recur (inc i) c)
+          (and (nil? q) (= c \#)
+               (or (zero? i) (Character/isWhitespace (.charAt line (dec i)))))
+          (subs line 0 i)
+          :else (recur (inc i) q))))))
 
 (defn- parse-yaml-value [s]
   (let [s (str/trim s)]
@@ -29,18 +65,15 @@
       (= s "false") false
       (re-matches #"-?\d+" s) (parse-long s)
       (re-matches #"-?\d+\.\d+" s) (parse-double s)
-      (and (str/starts-with? s "\"") (str/ends-with? s "\""))
-      (subs s 1 (dec (count s)))
-      (and (str/starts-with? s "'") (str/ends-with? s "'"))
-      (subs s 1 (dec (count s)))
-      :else s)))
+      :else (unquote-str s))))
 
 (defn parse-yaml
   "Parse a YAML string into Clojure data (maps, lists, scalars).
-   Handles the subset used by trees config files."
+   Handles the subset used by trees config files.  Limitations: no
+   multi-line scalars, no tab indentation."
   [text]
   (let [lines (->> (str/split-lines text)
-                   (remove #(re-matches #"\s*#.*" %))
+                   (map strip-comment)
                    (remove str/blank?))]
     (letfn [(parse-block [lines min-indent]
               (when (seq lines)
@@ -62,7 +95,7 @@
                       (str/starts-with? trimmed "- ") [result remaining]
                       :else
                       (if-let [[_ k v] (re-matches #"([^:]+):\s*(.*)" trimmed)]
-                        (let [k (str/trim k) v (str/trim v)]
+                        (let [k (yaml-key k) v (str/trim v)]
                           (if (empty? v)
                             ;; Nested block: use the actual indent of the next
                             ;; line (handles same-level list items in YAML).
@@ -72,8 +105,8 @@
                                                    (if (>= ni indent) ni (inc indent)))
                                                  (inc indent))
                                   [val rest-lines] (parse-block next-lines child-indent)]
-                              (recur (assoc result (keyword k) val) rest-lines))
-                            (recur (assoc result (keyword k) (parse-yaml-value v))
+                              (recur (assoc result k val) rest-lines))
+                            (recur (assoc result k (parse-yaml-value v))
                                    (rest remaining))))
                         [result remaining]))))))
             (parse-list [lines min-indent]
@@ -89,12 +122,12 @@
                             content-indent (+ indent 2)]
                         (if (str/includes? after-dash ":")
                           (let [[_ k v] (re-matches #"([^:]+):\s*(.*)" after-dash)
-                                k (str/trim k) v (str/trim v)
+                                k (yaml-key k) v (str/trim v)
                                 [first-map rest-after]
                                 (if (empty? v)
                                   (let [[val r] (parse-block (rest remaining) content-indent)]
-                                    [{(keyword k) val} r])
-                                  [{(keyword k) (parse-yaml-value v)} (rest remaining)])
+                                    [{k val} r])
+                                  [{k (parse-yaml-value v)} (rest remaining)])
                                 [rest-map rest-lines] (parse-map rest-after content-indent)]
                             (recur (conj result (merge first-map rest-map)) rest-lines))
                           (if (empty? after-dash)
@@ -114,7 +147,9 @@
       (str/replace "\\" "\\\\")
       (str/replace "\"" "\\\"")
       (str/replace "\n" "\\n")
-      (str/replace "\r" "")))
+      (str/replace "\r" "")
+      ;; Prevent a literal </script> from closing the inline script tag
+      (str/replace "</" "<\\/")))
 
 (defn- escape-html [s]
   (-> (str s)
@@ -132,7 +167,6 @@
     (number? x)  (str x)
     (string? x)  (str "\"" (escape-js x) "\"")
     (keyword? x) (str "\"" (name x) "\"")
-    (vector? x)      (str "[" (str/join "," (map clj->json x)) "]")
     (sequential? x)  (str "[" (str/join "," (map clj->json x)) "]")
     (map? x)     (str "{"
                       (str/join ","
@@ -156,13 +190,9 @@
         (str/replace #"(?<!\w)_(.+?)_(?!\w)" "<em>$1</em>")
         (str/replace #"`(.+?)`" "<code>$1</code>")
         (str/replace #"\[([^\]]+)\]\(([^)]+)\)"
-                     "<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>"))))
-
-(defn- md-strip
-  "Strip Markdown links to plain text: [label](url) → label.
-   Used for email body where markdown isn't rendered."
-  [s]
-  (when s (str/replace (str s) #"\[([^\]]+)\]\([^)]+\)" "$1")))
+                     (fn [[_ label url]]
+                       (str "<a href=\"" (str/replace url "\"" "%22")
+                            "\" target=\"_blank\" rel=\"noopener\">" label "</a>"))))))
 
 ;; ---------------------------------------------------------------------------
 ;; i18n
@@ -171,20 +201,16 @@
 (def ^:private i18n-strings
   {:en {:contactIntro "Contact: "      :redo "Redo"
         :toggleSummaryStyle "Toggle summary style"
-        :mailToMessage "Send by email" :mailSubject "Results"
-        :mailBody "Hi,\\n%s\\nThanks."}
+        :mailToMessage "Send by email" :mailSubject "Results"}
    :fr {:contactIntro "Contact : "     :redo "Recommencer"
         :toggleSummaryStyle "Changer le style de résumé"
-        :mailToMessage "Envoyer par mail" :mailSubject "Résultats"
-        :mailBody "Bonjour !\\n%s\\nMerci."}
+        :mailToMessage "Envoyer par mail" :mailSubject "Résultats"}
    :de {:contactIntro "Kontakt: "      :redo "Neu anfangen"
         :toggleSummaryStyle "Den Stil der Zusammenfassung ändern"
-        :mailToMessage "Per E-Mail senden" :mailSubject "Ergebnisse"
-        :mailBody "Hallo!\\n%s\\nDanke."}
-   :sv {:contactIntro "Kontakt: "      :redo "Redo"
+        :mailToMessage "Per E-Mail senden" :mailSubject "Ergebnisse"}
+   :sv {:contactIntro "Kontakt: "      :redo "Börja om"
         :toggleSummaryStyle "Växla sammanfattningsstil"
-        :mailToMessage "Skicka med e-post" :mailSubject "Resultat"
-        :mailBody "Hej,\\n%s\\nTack."}})
+        :mailToMessage "Skicka med e-post" :mailSubject "Resultat"}})
 
 (defn- kebab->camel
   "Convert a kebab-case keyword to camelCase: :mail-subject → :mailSubject."
@@ -244,15 +270,15 @@
     :else             choices))
 
 (defn- preprocess-choice
-  "Convert markdown to HTML and map status to CSS class in a choice."
+  "Convert markdown to HTML and map status to CSS class in a choice.
+   String summaries are rendered to HTML; the JS strips the tags when
+   building the email body."
   [choice]
   (cond-> choice
     (:answer choice)  (update :answer md->html)
     (:explain choice) (update :explain md->html)
     (:status choice)  (update :status #(get status->css % %))
-    ;; Pre-strip markdown from summary for email use (keep raw for display)
-    (:summary choice) (assoc :summaryText (let [s (:summary choice)]
-                                            (if (string? s) (md-strip s) s)))))
+    (string? (:summary choice)) (update :summary md->html)))
 
 (defn- parse-progress
   "Parse progress string \"[current max]\" into {:value N :max M}."
@@ -288,19 +314,14 @@
 ;; from CFG so it stays framework-agnostic.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private base-css
+(def ^:private status-css
+  "CSS shared by every framework: status colors, action links, score box."
   "/* Status colors */
 :root{
   --status-positive:#18753c;--status-positive-bg:color-mix(in srgb,#18753c 10%,transparent);
   --status-neutral:#0063cb;--status-neutral-bg:color-mix(in srgb,#0063cb 10%,transparent);
   --status-caution:#b34000;--status-caution-bg:color-mix(in srgb,#b34000 10%,transparent);
   --status-negative:#ce0500;--status-negative-bg:color-mix(in srgb,#ce0500 10%,transparent)}
-/* Layout */
-header{text-align:center;padding:2rem 1rem;background:#fafafa;border-bottom:2px solid #e0e0e0}
-header h1{font-size:1.8rem;margin:0 0 .3rem}
-header h2{font-size:1.1rem;font-weight:400;color:#666;margin:0}
-main{max-width:720px;margin:0 auto;padding:1.5rem 1rem 2rem}
-footer{text-align:center;padding:1.5rem 1rem;font-size:.875em;color:#999;border-top:1px solid #e0e0e0;margin-top:2rem}
 /* Status */
 .status-positive{border-color:var(--status-positive)!important;color:var(--status-positive)}
 .status-positive:hover{background:var(--status-positive-bg)!important}
@@ -313,10 +334,6 @@ footer{text-align:center;padding:1.5rem 1rem;font-size:.875em;color:#999;border-
 /* Actions */
 nav.actions{display:flex;gap:1rem;margin-bottom:1.5rem}
 nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem}
-/* Summary */
-.summary{margin-top:1rem}
-.summary article{margin:0 0 .6rem;padding:.75rem 1rem;background:#f8f8f8;
-  border-radius:.25rem;border-left:3px solid #ddd}
 /* Score */
 .score-result{margin:1.25rem 0;padding:1rem 1.2rem;border-radius:.25rem;font-weight:600}
 .score-result.status-positive{background:var(--status-positive-bg);color:var(--status-positive);border:1px solid var(--status-positive)}
@@ -324,6 +341,19 @@ nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem
 .score-result.status-caution{background:var(--status-caution-bg);color:var(--status-caution);border:1px solid var(--status-caution)}
 .score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}
 .trees{margin-top:1.5rem}")
+
+(def ^:private base-css
+  (str status-css "
+/* Layout */
+header{text-align:center;padding:2rem 1rem;background:#fafafa;border-bottom:2px solid #e0e0e0}
+header h1{font-size:1.8rem;margin:0 0 .3rem}
+header h2{font-size:1.1rem;font-weight:400;color:#666;margin:0}
+main{max-width:720px;margin:0 auto;padding:1.5rem 1rem 2rem}
+footer{text-align:center;padding:1.5rem 1rem;font-size:.875em;color:#999;border-top:1px solid #e0e0e0;margin-top:2rem}
+/* Summary */
+.summary{margin-top:1rem}
+.summary article{margin:0 0 .6rem;padding:.75rem 1rem;background:#f8f8f8;
+  border-radius:.25rem;border-left:3px solid #ddd}"))
 
 (def ^:private frameworks
   {:pure
@@ -362,42 +392,18 @@ aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
     :classes {:grid "trees-grid" :cell "trees-cell" :button "outline"
               :progress "" :heading ""}
     :css
-    "/* Status colors */
-:root{
-  --status-positive:#18753c;--status-positive-bg:color-mix(in srgb,#18753c 10%,transparent);
-  --status-neutral:#0063cb;--status-neutral-bg:color-mix(in srgb,#0063cb 10%,transparent);
-  --status-caution:#b34000;--status-caution-bg:color-mix(in srgb,#b34000 10%,transparent);
-  --status-negative:#ce0500;--status-negative-bg:color-mix(in srgb,#ce0500 10%,transparent)}
+    (str status-css "
 /* Layout */
 header{text-align:center}
 header h1{font-size:1.8rem;margin:0 0 .3rem}
 header h2{font-size:1.1rem;font-weight:400;margin:0}
 main{max-width:720px;margin:0 auto}
-/* Status */
-.status-positive{border-color:var(--status-positive)!important;color:var(--status-positive)}
-.status-positive:hover{background:var(--status-positive-bg)!important}
-.status-neutral{border-color:var(--status-neutral)!important;color:var(--status-neutral)}
-.status-neutral:hover{background:var(--status-neutral-bg)!important}
-.status-caution{border-color:var(--status-caution)!important;color:var(--status-caution)}
-.status-caution:hover{background:var(--status-caution-bg)!important}
-.status-negative{border-color:var(--status-negative)!important;color:var(--status-negative)}
-.status-negative:hover{background:var(--status-negative-bg)!important}
-/* Actions */
-nav.actions{display:flex;gap:1rem;margin-bottom:1.5rem}
-nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem}
 /* Summary */
 .summary{margin-top:1rem}
 .summary article{margin:0 0 .6rem;padding:.75rem 1rem;
   background:var(--pico-card-background-color);
   border-radius:.25rem;border-left:3px solid var(--pico-muted-border-color)}
-/* Score */
-.score-result{margin:1.25rem 0;padding:1rem 1.2rem;border-radius:.25rem;font-weight:600}
-.score-result.status-positive{background:var(--status-positive-bg);color:var(--status-positive);border:1px solid var(--status-positive)}
-.score-result.status-neutral{background:var(--status-neutral-bg);color:var(--status-neutral);border:1px solid var(--status-neutral)}
-.score-result.status-caution{background:var(--status-caution-bg);color:var(--status-caution);border:1px solid var(--status-caution)}
-.score-result.status-negative{background:var(--status-negative-bg);color:var(--status-negative);border:1px solid var(--status-negative)}
 /* Grid */
-.trees{margin-top:1.5rem}
 .trees-grid{display:flex;flex-wrap:wrap;gap:.75rem}
 .trees-cell{flex:1 1 200px;min-width:0}
 .trees button{width:100%;text-align:left;padding:.85rem 1.1rem;
@@ -408,7 +414,7 @@ nav.actions a{cursor:pointer;font-size:1.3em;text-decoration:none;padding:.25rem
 .trees button small{font-size:.82em;opacity:.6;margin-top:.4rem}
 /* Help */
 aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:var(--pico-card-background-color);
-  border-radius:.25rem;border-left:4px solid var(--pico-primary);font-size:.95em}"}
+  border-radius:.25rem;border-left:4px solid var(--pico-primary);font-size:.95em}")}
 
    :bulma
    {:cdn     "https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"
@@ -454,8 +460,11 @@ aside.help{margin:0 0 1.5rem;padding:1rem 1.2rem;background:#f5f7ff;
 (def ^:private js-runtime "
 'use strict';
 var HOME=CFG.home,START=CFG.start;
-var hist=[{score:JSON.parse(JSON.stringify(SV))}],showA=true;
 function dc(o){return JSON.parse(JSON.stringify(o))}
+function cur(){return location.hash.replace('#','')||HOME||'0'}
+/* Each hist entry records the node it leads to (at), so that browser
+   back navigation can truncate the history instead of stacking up. */
+var hist=[{score:dc(SV),at:cur()}],showA=true;
 function gn(id){return TREE.find(function(n){return n.node===id})}
 function sh(s){return s?s.replace(/<[^>]+>/g,''):''}
 function ms(p,c){var r=dc(p);for(var k in c){if(r[k]){var a=r[k].value,b=c[k].value;
@@ -470,12 +479,12 @@ function csr(scores){if(!CSO)return null;var m=[];
   if(!m.length)return null;m.sort(function(a,b){return(a.pri||0)-(b.pri||0)});return m[0]}
 function fmt(o,scores){for(var k in scores){var v=scores[k],sv=SV[k];
   if(sv&&sv['as-percent']&&sv.max)v=Math.round((v*100)/sv.max);
-  o=o.replace('%'+k+'%',v)}return o}
+  o=o.split('%'+k+'%').join(v)}return o}
 function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h)e.innerHTML=h;return e}
 
 function render(){
-  var hash=location.hash.replace('#','')||HOME||'0',node=gn(hash);
-  if(!node)node=gn(HOME||'0');
+  var node=gn(cur())||gn(HOME||'0')||TREE[0];
+  if(!node)return;
   var app=document.getElementById('app');app.innerHTML='';
   if(CFG.hasHeader)app.appendChild(el('header','',CFG.headerHtml));
   var main=el('main','','');
@@ -487,7 +496,7 @@ function render(){
     var tl=el('a','','\\ud83d\\udd17');tl.title=I18N.toggleSummaryStyle;tl.href='javascript:void(0)';
     tl.onclick=function(){showA=!showA;render()};nav.appendChild(tl);
     var rl=el('a','','\\ud83d\\udd03');rl.title=I18N.redo;rl.href='#'+(START||HOME||'0');
-    rl.onclick=function(){hist=[{score:dc(SV)}]};nav.appendChild(rl);
+    rl.onclick=function(){hist=[{score:dc(SV),at:(START||HOME||'0')}]};nav.appendChild(rl);
     if(CFG.mailTo){var ml=el('a','','\\ud83d\\udce9');ml.title=I18N.mailToMessage;
       var its=showA?(lh.answers||[]).filter(Boolean):(lh.questions||[]).filter(Boolean);
       var bp=its.map(function(i){return Array.isArray(i)?i.filter(Boolean).map(sh).join(' \\u2192 '):sh(String(i))}).reverse().join('\\n');
@@ -526,17 +535,19 @@ function render(){
           if(Array.isArray(ch.summary)&&ch.summary.length>1)alert(ch.summary[ch.summary.length-1]);
           var ph=hist[hist.length-1],cs=ms(ph.score,ch.score||{});
           var gt=ch.goto;if(typeof gt==='object'&&gt!==null)gt=gt['default']||Object.values(gt)[0]||'end';
-          hist.push({score:cs,
+          hist.push({score:cs,at:gt,
             questions:(ph.questions||[]).concat(node['no-summary']?[null]:[[node.text,ch.answer]]),
-            answers:(ph.answers||[]).concat([ch.summaryText||ch.summary||null])});
+            answers:(ph.answers||[]).concat([ch.summary||null])});
           location.hash=gt};
         cell.appendChild(btn);grid.appendChild(cell)});
       cd.appendChild(grid);main.appendChild(cd)}}
   app.appendChild(main);
   if(CFG.hasFooter)app.appendChild(el('footer','',CFG.footerHtml))}
 addEventListener('hashchange',function(){
-  var h=location.hash.replace('#','');
-  if(h===(START||HOME||'0'))hist=[{score:dc(SV)}];render()});
+  var h=cur();
+  if(h===(START||HOME||'0'))hist=[{score:dc(SV),at:h}];
+  else for(var i=hist.length-1;i>=0;i--){if(hist[i].at===h){hist=hist.slice(0,i+1);break}}
+  render()});
 render();")
 
 ;; ---------------------------------------------------------------------------
@@ -549,7 +560,7 @@ render();")
 
 (defn resolve-css-theme
   "Resolve a theme value to {:link url} or {:inline content}.
-  Priority: https:// URL, file:/// URL, local .css path, pico-themes name."
+  Priority: http(s):// URL, file:/// URL, local .css path, pico-themes name."
   [css-theme]
   (when css-theme
     (cond
@@ -559,14 +570,15 @@ render();")
       (let [path (subs css-theme 7)]
         (if (.exists (java.io.File. path))
           {:inline (slurp path)}
-          (do (println "Warning: theme file not found:" path) nil)))
-      (and (str/ends-with? css-theme ".css")
-           (.exists (java.io.File. css-theme)))
-      {:inline (slurp css-theme)}
+          (do (warn "Warning: theme file not found:" path) nil)))
+      (str/ends-with? css-theme ".css")
+      (if (.exists (java.io.File. css-theme))
+        {:inline (slurp css-theme)}
+        (do (warn "Warning: theme file not found:" css-theme) nil))
       (not (str/includes? css-theme " "))
       {:link (str "https://cdn.jsdelivr.net/gh/bzg/pico-themes@latest/" css-theme ".css")}
       :else
-      (do (println "Warning: unrecognized CSS theme value:" css-theme) nil))))
+      (do (warn "Warning: unrecognized CSS theme value:" css-theme) nil))))
 
 ;; ---------------------------------------------------------------------------
 ;; HTML generation
@@ -655,11 +667,13 @@ render();")
     (let [config-file (or (first args) "config.yml")
           output-file (or (second args) "index.html")]
       (when-not (.exists (java.io.File. config-file))
-        (println (str "Error: " config-file " not found."))
+        (warn (str "Error: " config-file " not found."))
         (System/exit 1))
-      (let [config (parse-yaml (slurp config-file))
-            html   (generate-html config)]
-        (spit output-file html)
+      (let [config (parse-yaml (slurp config-file))]
+        (when (empty? (:tree config))
+          (warn (str "Error: no tree found in " config-file "."))
+          (System/exit 1))
+        (spit output-file (generate-html config))
         (println (str "Generated " output-file " from " config-file
                       " (" (count (:tree config)) " nodes)"))))))
 

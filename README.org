@@ -20,6 +20,35 @@ You can try it against the =config-example.yml= file provided in this repository
 
 : ~$ trees config-example.yml
 
+This generates =index.html=.  You can pass another output file name as
+a second argument:
+
+: ~$ trees config-example.yml output.html
+
+Display the installed version with =trees -v= (or =--version=).
+
+* Configuration
+
+See =config-example.yml= for a complete, commented example.  Main
+top-level options:
+
+| Option                   | Description                                        |
+|--------------------------+----------------------------------------------------|
+| =locale=                   | UI language: =en= (default), =fr=, =de= or =sv=            |
+| =framework=                | CSS framework (see below)                          |
+| =css-theme=                | CSS theme (see below)                              |
+| =header=                   | Page header: =title= and =subtitle=                    |
+| =footer=                   | Page footer: =text= and =contact=                      |
+| =mail-to=                  | Email address for sending results                  |
+| =display-summary=          | Show the summary of answers on final pages         |
+| =display-score=            | Show the score result on final pages               |
+| =display-score-details=    | Show raw score values                              |
+| =display-unconditionally=  | Extra text always shown along with the score       |
+| =score-variables=          | Score variables and their initial values           |
+| =conditional-score-output= | Score-dependent messages on final pages            |
+| =ui-strings=               | Override built-in UI strings (e.g. =redo=, =mail-subject=) |
+| =tree=                     | The list of decision tree nodes                    |
+
 * CSS frameworks
 
 Set =framework= in your config file.  The default is =pico=.
@@ -41,7 +70,7 @@ css-theme: "doric"
 The =css-theme= option accepts:
 
 - A pico-themes name (e.g. =ashes=, =doric=, =swh=)
-- An =https://= URL to a remote CSS file
+- An =http(s)://= URL to a remote CSS file
 - A =file:///= URL to a local CSS file
 - A local =.css= file path
 
