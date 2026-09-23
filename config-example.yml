@@ -20,6 +20,7 @@ footer:
   contact: "advice@enchanted-forest.example"
 
 mail-to: "advice@enchanted-forest.example"
+# display-back: false  # hide the back link (shown by default)
 display-summary: true
 display-score: true
 display-score-details: false

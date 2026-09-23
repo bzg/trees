@@ -199,16 +199,16 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private i18n-strings
-  {:en {:contactIntro "Contact: "      :redo "Redo"
+  {:en {:contactIntro "Contact: "      :redo "Redo" :back "Back"
         :toggleSummaryStyle "Toggle summary style"
         :mailToMessage "Send by email" :mailSubject "Results"}
-   :fr {:contactIntro "Contact : "     :redo "Recommencer"
+   :fr {:contactIntro "Contact : "     :redo "Recommencer" :back "Retour"
         :toggleSummaryStyle "Changer le style de résumé"
         :mailToMessage "Envoyer par mail" :mailSubject "Résultats"}
-   :de {:contactIntro "Kontakt: "      :redo "Neu anfangen"
+   :de {:contactIntro "Kontakt: "      :redo "Neu anfangen" :back "Zurück"
         :toggleSummaryStyle "Den Stil der Zusammenfassung ändern"
         :mailToMessage "Per E-Mail senden" :mailSubject "Ergebnisse"}
-   :sv {:contactIntro "Kontakt: "      :redo "Börja om"
+   :sv {:contactIntro "Kontakt: "      :redo "Börja om" :back "Tillbaka"
         :toggleSummaryStyle "Växla sammanfattningsstil"
         :mailToMessage "Skicka med e-post" :mailSubject "Resultat"}})
 
@@ -490,9 +490,13 @@ function render(){
   var main=el('main','','');
   if(node.progress){var p=el('progress',CFG.cls.progress,'');p.value=node.progress.value;p.max=node.progress.max;main.appendChild(p)}
   main.appendChild(el('h3',CFG.cls.heading,node.text));
+  /* history.back() keeps browser history and hist in sync; nothing to
+     go back to when landing directly on a deep node via its URL. */
+  var nav=el('nav','actions','');
+  if(CFG.displayBack&&hist.length>1){var bl=el('a','','\\u2b05\\ufe0f');bl.title=I18N.back;
+    bl.href='javascript:void(0)';bl.onclick=function(){history.back()};nav.appendChild(bl)}
   if(node.done){
     var lh=hist[hist.length-1];
-    var nav=el('nav','actions','');
     var tl=el('a','','\\ud83d\\udd17');tl.title=I18N.toggleSummaryStyle;tl.href='javascript:void(0)';
     tl.onclick=function(){showA=!showA;render()};nav.appendChild(tl);
     var rl=el('a','','\\ud83d\\udd03');rl.title=I18N.redo;rl.href='#'+(START||HOME||'0');
@@ -525,6 +529,7 @@ function render(){
         sec.appendChild(art)})}
     main.appendChild(sec)
   }else{
+    if(nav.childNodes.length)main.appendChild(nav);
     if(node.help)main.appendChild(el('aside','help',node.help));
     if(node.choices){var cd=el('div','trees',''),grid=el('div',CFG.cls.grid,'');
       node.choices.forEach(function(ch){var cell=el('div',CFG.cls.cell,'');
@@ -544,9 +549,9 @@ function render(){
   app.appendChild(main);
   if(CFG.hasFooter)app.appendChild(el('footer','',CFG.footerHtml))}
 addEventListener('hashchange',function(){
-  var h=cur();
-  if(h===(START||HOME||'0'))hist=[{score:dc(SV),at:h}];
-  else for(var i=hist.length-1;i>=0;i--){if(hist[i].at===h){hist=hist.slice(0,i+1);break}}
+  var h=cur(),i=hist.map(function(e){return e.at}).lastIndexOf(h);
+  if(i>=0)hist=hist.slice(0,i+1);
+  else if(h===(START||HOME||'0'))hist=[{score:dc(SV),at:h}];
   render()});
 render();")
 
@@ -606,7 +611,8 @@ render();")
                                 "<a href=\"mailto:" (escape-html c) "\">"
                                 (escape-html c) "</a></p>"))
                          "</div>")
-        cfg-json  (clj->json {:displaySummary         (boolean (:display-summary config))
+        cfg-json  (clj->json {:displayBack            (not (false? (:display-back config)))
+                               :displaySummary         (boolean (:display-summary config))
                                :displayScore           (boolean (:display-score config))
                                :displayScoreDetails    (boolean (:display-score-details config))
                                :displayUnconditionally (or (:display-unconditionally config) false)
