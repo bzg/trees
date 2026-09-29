@@ -32,23 +32,24 @@ Display the installed version with =trees -v= (or =--version=).
 See =config-example.yml= for a complete, commented example.  Main
 top-level options:
 
-| Option                   | Description                                            |
-|--------------------------+--------------------------------------------------------|
-| =locale=                   | UI language: =en= (default), =fr=, =de= or =sv=                |
-| =framework=                | CSS framework (see below)                              |
-| =css-theme=                | CSS theme (see below)                                  |
-| =header=                   | Page header: =title= and =subtitle=                        |
-| =footer=                   | Page footer: =text= and =contact=                          |
-| =mail-to=                  | Email address for sending results                      |
-| =display-back=             | Show a back link on each page (default: =true=)          |
-| =display-summary=          | Show the summary of answers on final pages             |
-| =display-score=            | Show the score result on final pages                   |
-| =display-score-details=    | Show raw score values                                  |
-| =display-unconditionally=  | Extra text always shown along with the score           |
-| =score-variables=          | Score variables and their initial values               |
-| =conditional-score-output= | Score-dependent messages on final pages                |
-| =ui-strings=               | Override built-in UI strings (e.g. =redo=, =mail-subject=) |
-| =tree=                     | The list of decision tree nodes                        |
+| Option                   | Description                                              |
+|--------------------------+----------------------------------------------------------|
+| =locale=                   | UI language: =en= (default), =fr=, =de= or =sv=                  |
+| =framework=                | CSS framework (see below)                                |
+| =css-theme=                | CSS theme (see below)                                    |
+| =header=                   | Page header: =title= and =subtitle=                          |
+| =footer=                   | Page footer: =text= and =contact=                            |
+| =mail-to=                  | Email address for sending results                        |
+| =display-back=             | Show a back link on each page (default: =true=)            |
+| =display-summary=          | Show the summary of answers on final pages               |
+| =chronological-summary=    | List the summary in answer order (default: latest first) |
+| =display-score=            | Show the score result on final pages                     |
+| =display-score-details=    | Show raw score values                                    |
+| =display-unconditionally=  | Extra text always shown along with the score             |
+| =score-variables=          | Score variables and their initial values                 |
+| =conditional-score-output= | Score-dependent messages on final pages                  |
+| =ui-strings=               | Override built-in UI strings (e.g. =redo=, =mail-subject=)   |
+| =tree=                     | The list of decision tree nodes                          |
 
 * CSS frameworks
 

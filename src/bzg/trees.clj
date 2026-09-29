@@ -516,7 +516,8 @@ function render(){
     rl.onclick=function(){hist=[{score:dc(SV),at:(START||HOME||'0')}]};nav.appendChild(rl);
     if(CFG.mailTo){var ml=el('a','','\\ud83d\\udce9');ml.title=I18N.mailToMessage;
       var its=showA?(lh.answers||[]).filter(Boolean):(lh.questions||[]).filter(Boolean);
-      var bp=its.map(function(i){return Array.isArray(i)?i.filter(Boolean).map(sh).join(' \\u2192 '):sh(String(i))}).reverse().join('\\n');
+      var bp=its.map(function(i){return Array.isArray(i)?i.filter(Boolean).map(sh).join(' \\u2192 '):sh(String(i))});
+      if(!CFG.chronologicalSummary)bp.reverse();bp=bp.join('\\n');
       ml.href='mailto:'+CFG.mailTo+'?subject='+encodeURIComponent(I18N.mailSubject)+'&body='+encodeURIComponent(bp);
       nav.appendChild(ml)}
     main.appendChild(nav);
@@ -531,7 +532,8 @@ function render(){
       if(typeof CFG.displayUnconditionally==='string'&&CFG.displayUnconditionally)
         sec.appendChild(el('aside','',CFG.displayUnconditionally))}
     if(CFG.displaySummary){
-      var its=showA?(lh.answers||[]).filter(Boolean).reverse():(lh.questions||[]).filter(Boolean).reverse();
+      var its=(showA?(lh.answers||[]):(lh.questions||[])).filter(Boolean);
+      if(!CFG.chronologicalSummary)its.reverse();
       its.forEach(function(o){var art=el('article','','');
         if(typeof o==='string')art.innerHTML='<div>'+o+'</div>';
         else if(Array.isArray(o)&&o.length>0){var h='';
@@ -626,6 +628,7 @@ render();")
                          "</div>")
         cfg-json  (clj->json {:displayBack            (not (false? (:display-back config)))
                                :displaySummary         (boolean (:display-summary config))
+                               :chronologicalSummary   (boolean (:chronological-summary config))
                                :displayScore           (boolean (:display-score config))
                                :displayScoreDetails    (boolean (:display-score-details config))
                                :displayUnconditionally (or (:display-unconditionally config) false)

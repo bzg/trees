@@ -22,6 +22,7 @@ footer:
 mail-to: "advice@enchanted-forest.example"
 # display-back: false  # hide the back link (shown by default)
 display-summary: true
+# chronological-summary: true  # list answers in the order given (latest first by default)
 display-score: true
 display-score-details: false
 
