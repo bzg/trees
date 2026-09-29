@@ -166,7 +166,8 @@ tree:
     choices:
       - "True love, obviously": end-kiss
         status: positive
-        summary: "Motivated by true love."
+        # Double-quoted strings take YAML escapes: \" is a quote
+        summary: "Motivated by \"true love\"."
         score:
           trust:
             value: 1

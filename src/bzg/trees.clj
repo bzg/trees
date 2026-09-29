@@ -27,14 +27,25 @@
 (defn- count-indent [line]
   (- (count line) (count (str/triml line))))
 
-(defn- unquote-str
-  "Strip matching surrounding single or double quotes from a string."
+(defn- unescape-double
+  "Decode the escape sequences of a YAML double-quoted scalar; an
+   unknown escape is kept as is."
   [s]
-  (if (and (> (count s) 1)
-           (or (and (str/starts-with? s "\"") (str/ends-with? s "\""))
-               (and (str/starts-with? s "'") (str/ends-with? s "'"))))
-    (subs s 1 (dec (count s)))
-    s))
+  (str/replace s #"\\(.)"
+               (fn [[m c]]
+                 (case c "\"" "\"" "\\" "\\" "n" "\n" "t" "\t" "/" "/" m))))
+
+(defn- unquote-str
+  "Strip matching surrounding single or double quotes from a string,
+   decoding escapes as YAML does: backslash escapes in double quotes,
+   a doubled '' in single quotes."
+  [s]
+  (cond
+    (and (> (count s) 1) (str/starts-with? s "\"") (str/ends-with? s "\""))
+    (unescape-double (subs s 1 (dec (count s))))
+    (and (> (count s) 1) (str/starts-with? s "'") (str/ends-with? s "'"))
+    (str/replace (subs s 1 (dec (count s))) "''" "'")
+    :else s))
 
 (defn- yaml-key
   "Turn a YAML map key into a keyword.  The explicit nil namespace keeps
@@ -51,6 +62,8 @@
       line
       (let [c (.charAt line i)]
         (cond
+          ;; A backslash escapes the next character in double quotes
+          (and (= q \") (= c \\)) (recur (+ i 2) q)
           (and q (= c q)) (recur (inc i) nil)
           (and (nil? q) (or (= c \") (= c \'))) (recur (inc i) c)
           (and (nil? q) (= c \#)
