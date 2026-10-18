@@ -13,7 +13,9 @@
 (ns bzg.trees
   (:require [clojure.string :as str]
             [babashka.process :as process]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [clj-yaml.core :as yaml]
+            [flatland.ordered.map :refer [ordered-map]]))
 
 (defn- warn
   "Print a warning or error message to stderr."
@@ -21,135 +23,34 @@
   (binding [*out* *err*] (apply println msg)))
 
 ;; ---------------------------------------------------------------------------
-;; YAML parser (minimal, sufficient for trees config.yml)
+;; YAML parsing
+;;
+;; clj-yaml (bundled with Babashka) does the parsing; we only convert the
+;; result: keys become keywords (with a nil namespace, so that compact
+;; choice labels containing a slash stay intact), sequences become
+;; vectors, and maps keep the order of the config file, which matters for
+;; choices and conditional-score-output.
 ;; ---------------------------------------------------------------------------
 
-(defn- count-indent [line]
-  (- (count line) (count (str/triml line))))
-
-(defn- unescape-double
-  "Decode the escape sequences of a YAML double-quoted scalar; an
-   unknown escape is kept as is."
-  [s]
-  (str/replace s #"\\(.)"
-               (fn [[m c]]
-                 (case c "\"" "\"" "\\" "\\" "n" "\n" "t" "\t" "/" "/" m))))
-
-(defn- unquote-str
-  "Strip matching surrounding single or double quotes from a string,
-   decoding escapes as YAML does: backslash escapes in double quotes,
-   a doubled '' in single quotes."
-  [s]
-  (cond
-    (and (> (count s) 1) (str/starts-with? s "\"") (str/ends-with? s "\""))
-    (unescape-double (subs s 1 (dec (count s))))
-    (and (> (count s) 1) (str/starts-with? s "'") (str/ends-with? s "'"))
-    (str/replace (subs s 1 (dec (count s))) "''" "'")
-    :else s))
-
 (defn- yaml-key
-  "Turn a YAML map key into a keyword.  The explicit nil namespace keeps
-   keys containing a slash intact (e.g. compact choice labels)."
-  [s]
-  (keyword nil (unquote-str (str/trim s))))
+  "Turn a YAML map key into a keyword."
+  [k]
+  (keyword nil (str/trim (str k))))
 
-(defn- strip-comment
-  "Remove a trailing '# comment' that is outside quotes and preceded by
-   whitespace (or starts the line)."
-  [line]
-  (loop [i 0 q nil]
-    (if (>= i (count line))
-      line
-      (let [c (.charAt line i)]
-        (cond
-          ;; A backslash escapes the next character in double quotes
-          (and (= q \") (= c \\)) (recur (+ i 2) q)
-          (and q (= c q)) (recur (inc i) nil)
-          (and (nil? q) (or (= c \") (= c \'))) (recur (inc i) c)
-          (and (nil? q) (= c \#)
-               (or (zero? i) (Character/isWhitespace (.charAt line (dec i)))))
-          (subs line 0 i)
-          :else (recur (inc i) q))))))
-
-(defn- parse-yaml-value [s]
-  (let [s (str/trim s)]
-    (cond
-      (= s "true") true
-      (= s "false") false
-      (re-matches #"-?\d+" s) (parse-long s)
-      (re-matches #"-?\d+\.\d+" s) (parse-double s)
-      :else (unquote-str s))))
+(defn- convert-yaml
+  "Recursively convert parsed YAML data: keyword keys, vectors, ordered maps."
+  [x]
+  (cond
+    (map? x)        (into (ordered-map)
+                          (map (fn [[k v]] [(yaml-key k) (convert-yaml v)]))
+                          x)
+    (sequential? x) (mapv convert-yaml x)
+    :else           x))
 
 (defn parse-yaml
-  "Parse a YAML string into Clojure data (maps, lists, scalars).
-   Handles the subset used by trees config files.  Limitations: no
-   multi-line scalars, no tab indentation."
+  "Parse a YAML string into Clojure data (ordered maps, vectors, scalars)."
   [text]
-  (let [lines (->> (str/split-lines text)
-                   (map strip-comment)
-                   (remove str/blank?))]
-    (letfn [(parse-block [lines min-indent]
-              (when (seq lines)
-                (let [indent  (count-indent (first lines))
-                      trimmed (str/trim (first lines))]
-                  (cond
-                    (< indent min-indent)          [nil lines]
-                    (str/starts-with? trimmed "- ") (parse-list lines min-indent)
-                    (str/includes? trimmed ":")     (parse-map lines min-indent)
-                    :else [(parse-yaml-value trimmed) (rest lines)]))))
-            (parse-map [lines min-indent]
-              (loop [result {} remaining lines]
-                (if (empty? remaining)
-                  [result remaining]
-                  (let [indent  (count-indent (first remaining))
-                        trimmed (str/trim (first remaining))]
-                    (cond
-                      (< indent min-indent)          [result remaining]
-                      (str/starts-with? trimmed "- ") [result remaining]
-                      :else
-                      (if-let [[_ k v] (re-matches #"([^:]+):\s*(.*)" trimmed)]
-                        (let [k (yaml-key k) v (str/trim v)]
-                          (if (empty? v)
-                            ;; Nested block: use the actual indent of the next
-                            ;; line (handles same-level list items in YAML).
-                            (let [next-lines (rest remaining)
-                                  child-indent (if (seq next-lines)
-                                                 (let [ni (count-indent (first next-lines))]
-                                                   (if (>= ni indent) ni (inc indent)))
-                                                 (inc indent))
-                                  [val rest-lines] (parse-block next-lines child-indent)]
-                              (recur (assoc result k val) rest-lines))
-                            (recur (assoc result k (parse-yaml-value v))
-                                   (rest remaining))))
-                        [result remaining]))))))
-            (parse-list [lines min-indent]
-              (loop [result [] remaining lines]
-                (if (empty? remaining)
-                  [result remaining]
-                  (let [indent  (count-indent (first remaining))
-                        trimmed (str/trim (first remaining))]
-                    (cond
-                      (< indent min-indent) [result remaining]
-                      (str/starts-with? trimmed "- ")
-                      (let [after-dash     (str/trim (subs trimmed 2))
-                            content-indent (+ indent 2)]
-                        (if (str/includes? after-dash ":")
-                          (let [[_ k v] (re-matches #"([^:]+):\s*(.*)" after-dash)
-                                k (yaml-key k) v (str/trim v)
-                                [first-map rest-after]
-                                (if (empty? v)
-                                  (let [[val r] (parse-block (rest remaining) content-indent)]
-                                    [{k val} r])
-                                  [{k (parse-yaml-value v)} (rest remaining)])
-                                [rest-map rest-lines] (parse-map rest-after content-indent)]
-                            (recur (conj result (merge first-map rest-map)) rest-lines))
-                          (if (empty? after-dash)
-                            (let [[val rest-lines] (parse-block (rest remaining) content-indent)]
-                              (recur (conj result val) rest-lines))
-                            (recur (conj result (parse-yaml-value after-dash))
-                                   (rest remaining)))))
-                      :else [result remaining])))))]
-      (first (parse-block lines 0)))))
+  (convert-yaml (yaml/parse-string text :keywords false)))
 
 ;; ---------------------------------------------------------------------------
 ;; JSON serialization & HTML escaping
@@ -294,11 +195,13 @@
     (string? (:summary choice)) (update :summary md->html)))
 
 (defn- parse-progress
-  "Parse progress string \"[current max]\" into {:value N :max M}."
+  "Parse progress \"[current max]\" into {:value N :max M}.  An unquoted
+   [1 5] is read by YAML as a flow sequence, hence the sequential case."
   [s]
   (when s
-    (when-let [[_ cur mx] (re-matches #"\[(\d+)\s+(\d+)\]" (str s))]
-      {:value (parse-long cur) :max (parse-long mx)})))
+    (let [s (if (sequential? s) (str/join " " s) (str s))]
+      (when-let [[_ cur mx] (re-matches #"\[?(\d+)\s+(\d+)\]?" s)]
+        {:value (parse-long cur) :max (parse-long mx)}))))
 
 (defn- preprocess-node
   "Pre-process a tree node: normalize choices, convert markdown to HTML,
@@ -691,7 +594,11 @@ render();")
       (when-not (.exists (java.io.File. config-file))
         (warn (str "Error: " config-file " not found."))
         (System/exit 1))
-      (let [config (parse-yaml (slurp config-file))]
+      (let [config (try (parse-yaml (slurp config-file))
+                        (catch Exception e
+                          (warn (str "Error: cannot parse " config-file ":\n"
+                                     (.getMessage e)))
+                          (System/exit 1)))]
         (when (empty? (:tree config))
           (warn (str "Error: no tree found in " config-file "."))
           (System/exit 1))
