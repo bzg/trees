@@ -1,14 +1,16 @@
 #!/usr/bin/env bb
 
-;; Copyright (c) 2019-2025 Bastien Guerry <bzg@gnu.org>
+;; Copyright (c) 2019-2026 Bastien Guerry <bzg@gnu.org>
 ;; SPDX-License-Identifier: EPL-2.0
 ;; License-Filename: LICENSES/EPL-2.0.txt
 
-;; trees.clj — Static HTML generator for decision trees.
-;; Reads a config.yml and produces a self-contained index.html.
+;; trees — Static HTML generator for decision trees.
+;; Reads a YAML config file and produces a self-contained HTML page.
 ;;
-;; Usage: bb trees.clj [config.yml] [output.html]
+;; Usage: trees [config.yml] [output.html]   (installed with bbin)
+;;        bb -m bzg.trees [config.yml] [output.html]
 ;;        Defaults: config.yml -> index.html
+;;        trees -h | --help, trees -v | --version
 
 (ns bzg.trees
   (:require [clojure.string :as str]
@@ -626,8 +628,23 @@ render();")
               (vals (edn/read-string out)))))
     (catch Exception _ nil)))
 
+(def ^:private usage
+  "Usage: trees [config.yml] [output.html]
+
+Generate a static HTML page from a decision tree described in YAML.
+Defaults: config.yml -> index.html
+
+Options:
+  -h, --help     Show this help
+  -v, --version  Show the installed version
+
+See config-example.yml for a complete, commented configuration.")
+
 (defn -main [& args]
-  (if (contains? #{"-v" "--version"} (first args))
+  (case (first args)
+    ("-h" "--help")
+    (println usage)
+    ("-v" "--version")
     (println (str "trees " (or (bbin-version) "(version unknown)")))
     (let [config-file (or (first args) "config.yml")
           output-file (or (second args) "index.html")]

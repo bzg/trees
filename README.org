@@ -25,7 +25,8 @@ a second argument:
 
 : ~$ trees config-example.yml output.html
 
-Display the installed version with =trees -v= (or =--version=).
+Display the installed version with =trees -v= (or =--version=) and a
+short help with =trees -h= (or =--help=).
 
 * Configuration
 
@@ -50,6 +51,21 @@ top-level options:
 | =conditional-score-output= | Score-dependent messages on final pages                  |
 | =ui-strings=               | Override built-in UI strings (e.g. =redo=, =mail-subject=)   |
 | =tree=                     | The list of decision tree nodes                          |
+
+* Text formatting
+
+Texts in the configuration (=text=, =help=, =answer=, =explain= and
+=summary=) accept a small subset of Markdown:
+
+| Syntax       | Result                    |
+|--------------+---------------------------|
+| =**bold**=     | *bold*                      |
+| =_italic_=     | /italic/                    |
+| =`code`=       | =code=                      |
+| =[label](url)= | link, opened in a new tab |
+
+Anything else is passed through as is: raw HTML is allowed and is not
+escaped, so only use configuration files you trust.
 
 * CSS frameworks
 
