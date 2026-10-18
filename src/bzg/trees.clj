@@ -95,18 +95,30 @@
 ;; Markdown → HTML (applied at generation time, not in the browser)
 ;; ---------------------------------------------------------------------------
 
+(defn- md-inline
+  "Convert inline Markdown (bold, italic, code) to HTML."
+  [s]
+  (-> s
+      (str/replace #"\*\*(.+?)\*\*" "<strong>$1</strong>")
+      (str/replace #"(?<!\w)_(.+?)_(?!\w)" "<em>$1</em>")
+      (str/replace #"`(.+?)`" "<code>$1</code>")))
+
+(def ^:private md-link-re #"\[([^\]]+)\]\(([^)]+)\)")
+
 (defn- md->html
-  "Convert a subset of Markdown to HTML: bold, italic, code, links."
+  "Convert a subset of Markdown to HTML: bold, italic, code, links.
+   Links are split out first so that their URL is left untouched
+   (e.g. underscores in a path are not italics)."
   [s]
   (when s
-    (-> (str s)
-        (str/replace #"\*\*(.+?)\*\*" "<strong>$1</strong>")
-        (str/replace #"(?<!\w)_(.+?)_(?!\w)" "<em>$1</em>")
-        (str/replace #"`(.+?)`" "<code>$1</code>")
-        (str/replace #"\[([^\]]+)\]\(([^)]+)\)"
-                     (fn [[_ label url]]
+    (let [s     (str s)
+          texts (map md-inline (str/split s md-link-re -1))
+          links (map (fn [[_ label url]]
                        (str "<a href=\"" (str/replace url "\"" "%22")
-                            "\" target=\"_blank\" rel=\"noopener\">" label "</a>"))))))
+                            "\" target=\"_blank\" rel=\"noopener\">"
+                            (md-inline label) "</a>"))
+                     (re-seq md-link-re s))]
+      (apply str (interleave texts (concat links [""]))))))
 
 ;; ---------------------------------------------------------------------------
 ;; i18n
@@ -221,6 +233,34 @@
     {:nodes nodes
      :home  (some #(when (:home-page %) (:node %)) nodes)
      :start (some #(when (:start-page %) (:node %)) nodes)}))
+
+(defn- goto-targets
+  "Node ids a choice can lead to: a string, or the values of a map."
+  [goto]
+  (cond (string? goto) [goto]
+        (map? goto)    (filter string? (vals goto))
+        :else          []))
+
+(defn- tree-problems
+  "Return a list of problems found in a pre-processed tree: nodes
+   without an id, duplicated ids, choices pointing to unknown nodes,
+   missing home page."
+  [{:keys [nodes home]}]
+  (let [ids (map :node nodes)
+        known (set ids)]
+    (concat
+     (when (some nil? ids)
+       ["a node has no `node` id"])
+     (for [[id n] (frequencies (remove nil? ids)) :when (> n 1)]
+       (str "node id `" id "` is defined " n " times"))
+     (for [node nodes
+           choice (:choices node)
+           target (goto-targets (:goto choice))
+           :when (not (known target))]
+       (str "node `" (:node node) "`: choice `" (:answer choice)
+            "` points to unknown node `" target "`"))
+     (when-not home
+       ["no node has `home-page: true`"]))))
 
 ;; ---------------------------------------------------------------------------
 ;; CSS framework abstraction
@@ -602,6 +642,8 @@ render();")
         (when (empty? (:tree config))
           (warn (str "Error: no tree found in " config-file "."))
           (System/exit 1))
+        (doseq [p (tree-problems (preprocess-tree (:tree config)))]
+          (warn "Warning:" p))
         (spit output-file (generate-html config))
         (println (str "Generated " output-file " from " config-file
                       " (" (count (:tree config)) " nodes)"))))))
